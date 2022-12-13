@@ -1,0 +1,83 @@
+// Request URL: https://test.tmwork.net/Convo_2022.1/api/leave/checkdailyhours/
+// Request Method: PUT
+{
+    "Id": 0,
+    "Start": "2022-12-28T06:00:00.000Z",
+    "End": "2022-12-28T06:00:00.000Z",
+    "Days": 1,
+    "StartTime": "2022-12-12T06:00:00.000Z",
+    "EndTime": "2022-12-12T07:00:00.000Z",
+    "TypeId": 544,
+    "TypeName": null,
+    "Conflicts": 0,
+    "Hours": 1,
+    "CalculatedHours": 0,
+    "Balance": "N/A",
+    "Status": 1,
+    "StatusText": null,
+    "StatusDisplay": null,
+    "TimeHours": null,
+    "TimeTaskId": null,
+    "EmpId": 161202,
+    "EmpName": null,
+    "Notes": null,
+    "Employees": [
+        {
+            "Id": 161202,
+            "Title": "Abarbanell, Alan"
+        }
+    ],
+    "LeaveTypes": [
+        {
+            "Code": null,
+            "ExternalId": null,
+            "Scheduled": false,
+            "Blackout": false,
+            "AutoApprove": false,
+            "TaskId": 7217,
+            "AccrualId": null,
+            "ProjectCode": null,
+            "TaskCode": null,
+            "AccrualType": null,
+            "VisibleToAll": false,
+            "StyleId": null,
+            "Styles": null,
+            "Id": 544,
+            "Title": "VTO: Slack"
+        }
+    ],
+    "AccrualBalances": [],
+    "MinDate": "2021-12-12T00:00:00",
+    "MaxDate": "2024-12-12T00:00:00",
+    "MaxDays": 84,
+    "MaxHours": 672,
+    "SaveEntered": false,
+    "CanEdit": true,
+    "CanCancel": false,
+    "CanDelete": false,
+    "CanRemoveCancel": false,
+    "BalanceIsDays": false,
+    "OverBalance": false,
+    "CommentRequired": false,
+    "IsLeaveManagement": false,
+    "IsAllDay": false,
+    "Created": null,
+    "CanGrant": false,
+    "CanRequest": false,
+    "CanDeny": false,
+    "HasPolicy": true,
+    "Messages": null,
+    "QuotaCheck": null,
+    "LimitCheck": null,
+    "Styles": null,
+    "DayHours": [
+        {
+            "Date": "2022-12-28T00:00:00",
+            "Count": null,
+            "Value": 1,
+            "Description": null,
+            "Id": 0,
+            "Title": null
+        }
+    ]
+}

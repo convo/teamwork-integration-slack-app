@@ -1,0 +1,56 @@
+// Request URL: https://test.tmwork.net/Convo_2022.1/api/employees/list?sort=&page=1&pageSize=25&group=&filter=Email~contains~'{employee_email}'
+// Request Method: GET
+// Params: ?sort=&page=1&pageSize=25&group=&filter=Email~contains~'{employee_email}'
+{
+    "Data": [
+        {
+            "Id": 161202,
+            "FullName": "Abarbanell, Alan",
+            "EmployeeNum": "5593",
+            "ExternalId": "577665",
+            "BusinessId": null,
+            "LocationName": "Nova-V (ET)",
+            "Crew": null,
+            "StatusId": 4,
+            "HireDate": "2021-11-15T00:00:00",
+            "TermDate": null,
+            "EnterpriseRank": 99999,
+            "Udf1": "FT",
+            "Udf2": "N",
+            "Udf3": "5593",
+            "Udf4": "VI",
+            "Udf5": "US",
+            "Udf6": "577665",
+            "Udf7": "N",
+            "Udf8": null,
+            "Udf9": null,
+            "Udf10": null,
+            "Udf11": null,
+            "Udf12": null,
+            "Udf13": null,
+            "Udf14": null,
+            "Udf15": null,
+            "Udf16": null,
+            "Udf17": null,
+            "Udf18": null,
+            "Udf19": null,
+            "Udf20": null,
+            "Udf21": null,
+            "Udf22": null,
+            "Udf23": null,
+            "Udf24": null,
+            "Udf25": null,
+            "Udf26": null,
+            "Udf27": null,
+            "Udf28": null,
+            "Udf29": null,
+            "Udf30": null,
+            "Email": "Alan.Abarbanell@convorelay.com",
+            "Mobile": "240-659-9645",
+            "Styles": []
+        }
+    ],
+    "Total": 1,
+    "AggregateResults": null,
+    "Errors": null
+}

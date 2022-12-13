@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "teamwork-integration-slack-app"
+version = "0.1.0"
+description = ""
+authors = ["convo-vinny <vincent.venutolo@convorelay.com>"]
+readme = "README.md"
+packages = [
+    { include = "teamwork_integration_slack_app" },
+    { include = "auth", from = "teamwork_integration_slack_app" }
+]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
