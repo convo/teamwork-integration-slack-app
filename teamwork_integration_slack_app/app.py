@@ -388,8 +388,6 @@ def execute(body: dict, respond: Respond, client: WebClient):
         print("Error sending message: {}".format(e))
     
     user: SlackResponse = client.users_lookupByEmail(email=step["inputs"]["vtoFormReceipient"]["value"])
-    
-
 
 # Start teamwork integration slack app
 if __name__ == "__main__":
