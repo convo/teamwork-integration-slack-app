@@ -36,23 +36,6 @@ app = App(signing_secret = os.environ["SLACK_SIGNING_SECRET"],
           raise_error_for_unhandled_request=True
           )
 
-
-#https://api.slack.com/methods/chat.postEphemeral
-def send_ephemeral_message(channel,text,user,username,icon_url,client: WebClient):
-    try:
-        # Call the chat.postMessage API method
-        response = client.chat_postEphemeral(
-            channel=channel,
-            text=text,
-            user=user,
-            username=username,
-            icon_url=icon_url
-        )
-        print(response)
-    except SlackApiError as e:
-        # Handle errors
-        print("Error sending message: {}".format(e))
-
 @app.action({"type": "workflow_step_edit", "callback_id": "leave_request"})
 def edit(body: dict, ack: Ack, client: WebClient):
     
@@ -410,8 +393,6 @@ def execute(body: dict, respond: Respond, client: WebClient):
         print("Error sending message: {}".format(e))
     
     user: SlackResponse = client.users_lookupByEmail(email=step["inputs"]["vtoFormReceipient"]["value"])
-    
-
 
 # Start teamwork integration slack app
 if __name__ == "__main__":
