@@ -99,136 +99,69 @@ class TW_Connector(object):
     api_token: str = None
     
     def get_employee_by_email(self, email):
-        attempts = 0
-        while attempts < 3:
-            try:
-                
-                if not hasattr(self, 'api_token') and not hasattr(self, 'session_id') or \
-                not self.api_token and not self.session_id:
-                    self._authenicate_tw()
-                url = self.base_url + "/api/employees/list"
-                print(url)
-                print(self.headers)
-                response = requests.get(url = url,
-                                        headers=json.loads(self.headers),
-                                        params= {
-                                            "sort":"",
-                                            "page":"1",
-                                            "pageSize":"10",
-                                            "group":"",
-                                            "filter":f"Email~contains~'{email}'"
-                                        })
-                
-                response.raise_for_status()
-                result = response.json()
-                print(result)
-                
-                if not result['Errors'] == None:
-                    raise TimeoutError
-                else:
-                    if len(result['Data']) == 0:
-                        print(f'ERROR: We couldn\'t find an employee by the following email: {email}')
-                        return None
-                    break
-                
-            except requests.exceptions.TimeoutError as e:
-                attempts += 1
-                print('ERROR: Ah no, the session has expired! Reconnecting Teamwork...')
-                self.api_token = ''
-                self.session_id = ''
-                continue
+        if not hasattr(self, 'api_token') and not hasattr(self, 'session_id') or \
+        not self.api_token and not self.session_id:
+            self._authenicate_tw()
+        url = self.base_url + "/api/employees/list"
+        print(url)
+        print(self.headers)
+        response = requests.get(url = url,
+                                headers=json.loads(self.headers),
+                                params= {
+                                    "sort":"",
+                                    "page":"1",
+                                    "pageSize":"10",
+                                    "group":"",
+                                    "filter":f"Email~contains~'{email}'"
+                                })
         
-        return result['Data']
+        response.raise_for_status()
+        result = response.json()
+        print(result)
+        return response
+        #return result['Data']
     
     def get(self, endpoint, **kwargs):
-        attempts = 0
-        while attempts < 3:
-            try:
-                if not hasattr(self, 'api_token') and not hasattr(self, 'session_id') or \
-                        not self.api_token and not self.session_id:
-                    self._authenicate_tw()
-                
-                response = requests.get(url = f"{self.base_url}" + endpoint,
-                                        headers=json.loads(self.headers),
-                                        **kwargs)
-                
-                response.raise_for_status()
-                result = response.json()
-                
-                # if not result['Errors'] == None:
-                #     raise TimeoutError
-                # break
-                break
-            
-            except requests.exceptions.TimeoutError as e:
-                attempts += 1
-                print('ERROR: Ah no, the session has timed out! Reconnecting Teamwork...')
-                self.api_token = ''
-                self.session_id = ''
-                continue
-        return result
+        if not hasattr(self, 'api_token') and not hasattr(self, 'session_id') or \
+                not self.api_token and not self.session_id:
+            self._authenicate_tw()
+        
+        response = requests.get(url = f"{self.base_url}" + endpoint,
+                                headers=json.loads(self.headers),
+                                **kwargs)
+        
+        #response.raise_for_status()
+        #result = response.json()
+        return response
     
     def post(self, endpoint, payload, **kwargs):
-        attempts = 0
-        while attempts < 3:
-            try:
-                if not hasattr(self, 'api_token') and not hasattr(self, 'session_id') or \
-                        not self.api_token and not self.session_id:
-                    self._authenicate_tw()
-                    
-                response = requests.post(url = f"{self.base_url}" + endpoint,
-                                        json = payload,
-                                        headers = json.loads(self.headers),
-                                        **kwargs)
-                
-                response.raise_for_status()
-                result = response.json()
-                print(result)
-                # if not result['Errors'] == None:
-                #     raise TimeoutError
-                # break
-                break
+        if not hasattr(self, 'api_token') and not hasattr(self, 'session_id') or \
+                not self.api_token and not self.session_id:
+            self._authenicate_tw()
             
-            except requests.exceptions.TimeoutError as e:
-                attempts += 1
-                print('ERROR: Ah no, the session has timed out! Reconnecting Teamwork...')
-                self.api_token = ''
-                self.session_id = ''
-                continue
-        return result
+        response = requests.post(url = f"{self.base_url}" + endpoint,
+                                json = payload,
+                                headers = json.loads(self.headers),
+                                **kwargs)
+        
+        response.raise_for_status()
+        return response
+        #result = response.json()
+        #print(result)
     
     def request(self, request_method, endpoint, payload, **kwargs):
-        attempts = 0
-        while attempts < 3:
-            try:
-                if not hasattr(self, 'api_token') and not hasattr(self, 'session_id') or \
-                        not self.api_token and not self.session_id:
-                    self._authenicate_tw()
-                    
-                response = requests.request(method = request_method,
-                                            url = f"{self.base_url}" + endpoint,
-                                            data = payload,
-                                            headers = json.loads(self.headers),
-                                            **kwargs)
-                
-                response.raise_for_status()
-                if "/api/leave/post/" in endpoint:
-                    print(response)
-                    result = response
-                else:
-                    result = response.json()
-                    print(result)
-                # if not result['Errors'] != None:
-                #     raise TimeoutError
-                # break
-                break
-            except requests.exceptions.TimeoutError as e:
-                attempts += 1
-                print('ERROR: Ah no, the session has timed out! Reconnecting Teamwork...')
-                self.api_token = ''
-                self.session_id = ''
-                continue
-        return result
+        if not hasattr(self, 'api_token') and not hasattr(self, 'session_id') or \
+                not self.api_token and not self.session_id:
+            self._authenicate_tw()
+            
+        response = requests.request(method = request_method,
+                                    url = f"{self.base_url}" + endpoint,
+                                    data = payload,
+                                    headers = json.loads(self.headers),
+                                    **kwargs)
+        
+        response.raise_for_status()
+        return response
     
     def _authenicate_tw(self):
         # uses standard creds to authenticate via the API

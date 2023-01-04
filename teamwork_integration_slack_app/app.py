@@ -115,6 +115,8 @@ def save(ack: Ack, client: WebClient, body: dict):
     )
     ack()
 
+
+
 @app.action("open-leave-request-form")
 def button_click(ack: Ack, body: dict, respond: Respond, client: WebClient):
     print('--------------- open-leave-request-form ---------------')
@@ -223,8 +225,22 @@ def button_click(ack: Ack, body: dict, respond: Respond, client: WebClient):
 @app.view("leave-request-submission")
 def handle_submission(ack: Ack, body: dict, client: WebClient):
     print('--------------- leave-request-submission ---------------')
+    vto_start_time = body["view"]["state"]["values"]["vto_start_time_input"]["vto_start_time"]["selected_date_time"]
+    vto_end_time = body["view"]["state"]["values"]["vto_end_time_input"]["vto_end_time"]["selected_date_time"]
+    # Validate inputs
+    if vto_start_time >= vto_end_time:
+        print('ERRRRRRRROOOOOOORRRSSSS')
+        ack({
+            "response_action": "errors",
+            "errors": {
+                "vto_start_time_input": "This cannot be more than or equal to the VTO End Time.",
+                "vto_end_time_input": "This cannot be more than or equal to the VTO Start Time."
+            }
+        })
+        return
     ack()
-    logging.info(body)
+    # Validate inputs
+    #logging.info(body)
     print('>>>>>> form data')
     logging.info(body["view"]["state"]["values"])
     
@@ -236,8 +252,10 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
     vto_end_time = body["view"]["state"]["values"]["vto_end_time_input"]["vto_end_time"]["selected_date_time"]
     vto_timezone_label = body["view"]["state"]["values"]["vto_timezone_input"]["vto_timezone"]["selected_option"]["text"]["text"]
     vto_timezone = body["view"]["state"]["values"]["vto_timezone_input"]["vto_timezone"]["selected_option"]["value"]
+
     print(f'{vto_start_time}\n{vto_end_time}\n{vto_timezone}')
     print(f'{os.environ.get("TEAMWORK_URL")}\n')
+    
     tw_connector = TW_Connector(base_url = os.environ.get("TEAMWORK_URL"),
                                 portal = os.environ.get("TEAMWORK_PORTAL"),
                                 code = os.environ.get("TEAMWORK_CODE"),
@@ -246,26 +264,21 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
     tw_connector._authenicate_tw()
     
     # Find the employee information by email
-    tw_employee = tw_connector.get_employee_by_email(user_email)
-    print('--- Employee Information')
-    print(tw_employee)
-    print('---')
+    response = tw_connector.get_employee_by_email(user_email)
+    tw_employee = response.json()['Data']
+    print(f'--- Employee Information ---\n{tw_employee}\n---')
     
     # Get the list of leave types
-    tw_leave_types = tw_connector.get('/api/leave/leavetypes')
+    response = tw_connector.get('/api/leave/leavetypes')
+    tw_leave_types = response.json()
+    print(f'--- List of Teamwork\'s Leave Types ---\n{tw_leave_types}\n---')
     
-    print('--- List of Teamwork\'s Leave Types')
-    print(tw_leave_types)
-    print('---')
-    
+    # Get a VTO Slack leave type
     if not len(tw_leave_types) == 0:
         for i in tw_leave_types:
             if i["Title"] == "VTO: Slack" or i["Code"] == "VTOSLACK":
                 selected_leave_type = i
-    
-    print('--- Selected VTO Slack type')
-    print(selected_leave_type)
-    print('---')
+    print(f'--- Selected VTO Slack type ---\n{selected_leave_type}\n---')
     
     # Format the datetime variables
     formatted_vto_start_time = datetime.strptime(datetime.fromtimestamp(vto_start_time).strftime(date_format), date_format)
@@ -300,10 +313,11 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
     #                                     tw_leave_request.to_json())
     # tw_leave_request = tw_leave_request.from_json(response_check_daily_hours)
     
-    response_calc_daily_hours = tw_connector.request("PUT",
-                                         "/api/leave/calcdailyhours/",
-                                         tw_leave_request.to_json())    
-    day_hours_obj = [{"DayHours": response_calc_daily_hours}]
+    # Calculate the daily hours of a leave request
+    response = tw_connector.request("PUT",
+                                    "/api/leave/calcdailyhours/",
+                                    tw_leave_request.to_json())    
+    day_hours_obj = [{"DayHours": response.json()}]
     print(day_hours_obj)
     tw_leave_request.from_json(json.dumps(day_hours_obj))
     
@@ -316,12 +330,16 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
                                     params = {"validatedOnServer":"false"})
     print(final_response)
     if final_response.status_code == 200:
-        client.chat_postEphemeral(channel="test-teamwork-integration-app",
-                                  text="your leave request has been submitted successfully.",
+        response = client.chat_postEphemeral(channel="test-teamwork-integration-app",
+                                  blocks=[{"type": "section",
+                                           "text": {"type": "plain_text",
+                                                 "text": "Good news! Your request was submitted successfully.",
+                                                 "emoji": True
+                                                 }}],
                                   user=user_id,
-                                  username="Teamwork Bot",
-                                  icon_url="https://drive.google.com/file/d/1Fka967CLI55O1oma0dJYhBQawi829bKY")
-        print("leave request has been submitted successfully.")
+                                  username="Success",
+                                  icon_url="https://convorelay.com/wp-content/uploads/2023/01/convo_bot_success_512.png")
+        print(final_response)
     
 
 @app.shortcut("leave-request-shortcut")
