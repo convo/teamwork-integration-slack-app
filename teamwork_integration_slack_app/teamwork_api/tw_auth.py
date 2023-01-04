@@ -3,8 +3,13 @@ from datetime import datetime
 import os
 import json
 import requests
+from requests import exceptions
 from dotenv import load_dotenv
 load_dotenv()
+
+# Convert a data class instance into a json object
+def to_json(data_instance):
+    return json.dumps(data_instance.__dict__)
 
 @dataclass
 class Employee(object):
@@ -15,29 +20,31 @@ class Employee(object):
     full_name: str = None
     location_name: str = None
     
-
+    def __post_init__(self):
+        print('Initialized creating an employee object...')
+    
 @dataclass
-class Employee_LeaveRequest(object):
-    Id: int = None
+class Employee_Leave_Request(object):
+    Id: int = 0
     Start: datetime = None
     End: datetime = None
     Days: int = 0
     StartTime: datetime = None
     EndTime: datetime = None
-    TypeId: int = 0
-    TypeName: str = None
+    TypeId: int = 544
+    TypeName: str = ""
     Conflicts: int = 0
     Hours: int = 0
     CalculatedHours: int = 0
-    Balance: str = 'N/A'
+    Balance: str = ""
     Status: int = 0
-    StatusText: str = None
-    StatusDisplay: str = None
+    StatusText: str = ""
+    StatusDisplay: str = ""
     TimeHours: int = 0
     TimeTaskId: int = 0
     EmpId: int = 0
-    EmpName: str = None
-    Notes: str = None
+    EmpName: str = ""
+    Notes: str = ""
     Employees: list = field(default_factory=lambda : [])
     LeaveTypes: list = field(default_factory=lambda : [])
     AccrualBalances: list = field(default_factory=lambda : [])
@@ -60,20 +67,24 @@ class Employee_LeaveRequest(object):
     CanRequest: bool = False
     CanDeny: bool = False
     HasPolicy: bool = True
-    Messages: str = None
-    QuotaCheck: str = None
-    LimitCheck: str = None
-    Styles: str = None
+    Messages: str = ""
+    QuotaCheck: str = ""
+    LimitCheck: str = ""
+    Styles: list = field(default_factory=lambda : [])
     DayHours: list = field(default_factory=lambda : [])
+    
+    def from_json(self, json_data):
+        data = json.loads(json_data)
+        print(data)
+        for d in data:
+            for key, value in d.items():
+                setattr(self, key, value)
+    
+    def to_json(self):
+        return json.dumps(self.__dict__)
     
     def __post_init__(self):
         print('Initialized making a leave request object...')
-        
-    def _calc_daily_hours(self, object):
-        pass
-    
-    def _check_daily_hours(self, object):
-        pass
     
     
     
@@ -95,23 +106,27 @@ class TW_Connector(object):
                 if not hasattr(self, 'api_token') and not hasattr(self, 'session_id') or \
                 not self.api_token and not self.session_id:
                     self._authenicate_tw()
-                
-                response = requests.get(url = self.base_url + "/api/employees/list",
-                                        headers=self.headers,
+                url = self.base_url + "/api/employees/list"
+                print(url)
+                print(self.headers)
+                response = requests.get(url = url,
+                                        headers=json.loads(self.headers),
                                         params= {
-                                            'sort':'',
-                                            'page':'1',
-                                            'group':'',
-                                            'filter':f'Email~contains~\'{email}\''
+                                            "sort":"",
+                                            "page":"1",
+                                            "pageSize":"10",
+                                            "group":"",
+                                            "filter":f"Email~contains~'{email}'"
                                         })
                 
                 response.raise_for_status()
                 result = response.json()
+                print(result)
                 
-                if result['data'] == 'Session Timeout. Please sign in again.':
+                if not result['Errors'] == None:
                     raise TimeoutError
                 else:
-                    if len(result['data']) == 0:
+                    if len(result['Data']) == 0:
                         print(f'ERROR: We couldn\'t find an employee by the following email: {email}')
                         return None
                     break
@@ -123,7 +138,7 @@ class TW_Connector(object):
                 self.session_id = ''
                 continue
         
-        return result['data']
+        return result['Data']
     
     def get(self, endpoint, **kwargs):
         attempts = 0
@@ -134,14 +149,15 @@ class TW_Connector(object):
                     self._authenicate_tw()
                 
                 response = requests.get(url = f"{self.base_url}" + endpoint,
-                                        headers=self.headers,
+                                        headers=json.loads(self.headers),
                                         **kwargs)
                 
                 response.raise_for_status()
                 result = response.json()
                 
-                if result['data'] == 'Session Timeout. Please sign in again.':
-                    raise TimeoutError
+                # if not result['Errors'] == None:
+                #     raise TimeoutError
+                # break
                 break
             
             except requests.exceptions.TimeoutError as e:
@@ -162,14 +178,15 @@ class TW_Connector(object):
                     
                 response = requests.post(url = f"{self.base_url}" + endpoint,
                                         json = payload,
-                                        headers = self.headers,
+                                        headers = json.loads(self.headers),
                                         **kwargs)
                 
                 response.raise_for_status()
                 result = response.json()
-                
-                if result['data'] == 'Session Timeout. Please sign in again.':
-                    raise TimeoutError
+                print(result)
+                # if not result['Errors'] == None:
+                #     raise TimeoutError
+                # break
                 break
             
             except requests.exceptions.TimeoutError as e:
@@ -190,17 +207,21 @@ class TW_Connector(object):
                     
                 response = requests.request(method = request_method,
                                             url = f"{self.base_url}" + endpoint,
-                                            json = payload,
-                                            headers = self.headers,
+                                            data = payload,
+                                            headers = json.loads(self.headers),
                                             **kwargs)
                 
                 response.raise_for_status()
-                result = response.json()
-                
-                if result['data'] == 'Session Timeout. Please sign in again.':
-                    raise TimeoutError
+                if "/api/leave/post/" in endpoint:
+                    print(response)
+                    result = response
+                else:
+                    result = response.json()
+                    print(result)
+                # if not result['Errors'] != None:
+                #     raise TimeoutError
+                # break
                 break
-            
             except requests.exceptions.TimeoutError as e:
                 attempts += 1
                 print('ERROR: Ah no, the session has timed out! Reconnecting Teamwork...')
@@ -213,19 +234,21 @@ class TW_Connector(object):
         # uses standard creds to authenticate via the API
         # Endpoint (verb = POST): <baseURL>/api/ops/auth
 
-        payload_data = json.dumps({
-        "Request": {
-            "Portal": self.portal,
-            "Code": self.code,
-            "Username": self.username,
-            "Password": self.password
-            }
-        })
+        payload_data = json.dumps(
+            {
+            "Request": {
+                "Portal": self.portal,
+                "Code": self.code,
+                "Username": self.username,
+                "Password": self.password
+                }
+        }
+            )
         
         response = requests.post(
                             url = f'{self.base_url}/api/ops/auth',
-                            json = payload_data,
-                            headers = {'Content-Type': 'application/json'}
+                            data = payload_data,
+                            headers = {"Content-Type": "application/json"}
         )
         response.raise_for_status()
         result = response.json()
@@ -234,12 +257,12 @@ class TW_Connector(object):
         if not result['Success']:
             raise Exception(f'Teamwork authentication unsuccessful, the response returned: \n{result}\n')
         else:
-            self.session_id = result['SessionId']
-            self.api_token = result['APIToken']
+            self.session_id = result['Response']['SessionId']
+            self.api_token = result['Response']['APIToken']
             self.headers = json.dumps({
-                "Content-Type": "application/json",
                 "x-session-id": f"{self.session_id}",
-                "x-api-token": f"{self.api_token}"
+                "x-api-token": f"{self.api_token}",
+                "Content-Type": "application/json"
             })
         
     def __post_init__(self):
