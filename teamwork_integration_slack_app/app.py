@@ -2,6 +2,7 @@ import os
 import logging
 import json
 import re
+import requests
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
 
@@ -238,7 +239,6 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
             }
         })
         return
-    ack()
     # Validate inputs
     #logging.info(body)
     print('>>>>>> form data')
@@ -329,7 +329,16 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
                                     payload = json.dumps(leave_json_data),
                                     params = {"validatedOnServer":"false"})
     print(final_response)
-    if final_response.status_code == 200:
+    if final_response.status_code == 409:
+        ack({
+            "response_action": "errors",
+            "errors": {
+                "vto_timezone_input": "Conflicted with other request. Please Try again with different date and time."
+            }
+        })
+        return
+    elif final_response.status_code == 200:
+        ack()
         response = client.chat_postEphemeral(channel="test-teamwork-integration-app",
                                   blocks=[{"type": "section",
                                            "text": {"type": "plain_text",
@@ -340,7 +349,6 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
                                   username="Success",
                                   icon_url="https://convorelay.com/wp-content/uploads/2023/01/convo_bot_success_512.png")
         print(final_response)
-    
 
 @app.shortcut("leave-request-shortcut")
 def open_modal(ack: Ack, body: dict, client: WebClient):

@@ -145,24 +145,27 @@ class TW_Connector(object):
                                 **kwargs)
         
         response.raise_for_status()
+        response.status_code
         return response
         #result = response.json()
         #print(result)
     
     def request(self, request_method, endpoint, payload, **kwargs):
-        if not hasattr(self, 'api_token') and not hasattr(self, 'session_id') or \
-                not self.api_token and not self.session_id:
-            self._authenicate_tw()
-            
-        response = requests.request(method = request_method,
-                                    url = f"{self.base_url}" + endpoint,
-                                    data = payload,
-                                    headers = json.loads(self.headers),
-                                    **kwargs)
-        
-        response.raise_for_status()
-        return response
-    
+        try:
+            if not hasattr(self, 'api_token') and not hasattr(self, 'session_id') or \
+                    not self.api_token and not self.session_id:
+                self._authenicate_tw()
+                
+            response = requests.request(method = request_method,
+                                        url = f"{self.base_url}" + endpoint,
+                                        data = payload,
+                                        headers = json.loads(self.headers),
+                                        **kwargs)
+            response.raise_for_status()
+            return response
+        except requests.exceptions.HTTPError as e:
+            print(f'--- Http Error:\n {e}\n---')
+            return response
     def _authenicate_tw(self):
         # uses standard creds to authenticate via the API
         # Endpoint (verb = POST): <baseURL>/api/ops/auth
