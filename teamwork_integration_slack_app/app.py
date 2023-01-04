@@ -333,6 +333,11 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
                                     params = {"validatedOnServer":"false"})
     print(final_response)
     if final_response.status_code == 200:
+        client.chat_postEphemeral(channel="test-teamwork-integration-app",
+                                  text="your leave request has been submitted successfully.",
+                                  user=user_id,
+                                  username="Teamwork Bot",
+                                  icon_url="https://drive.google.com/file/d/1Fka967CLI55O1oma0dJYhBQawi829bKY")
         print("leave request has been submitted successfully.")
     
 
