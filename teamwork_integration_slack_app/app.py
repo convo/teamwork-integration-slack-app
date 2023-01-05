@@ -375,7 +375,7 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
         response = client.chat_postMessage(username="Success",
                                   blocks=[{"type": "section",
                                            "text": {"type": "plain_text",
-                                                 "text": "Good news! Your request was submitted successfully.",
+                                                 "text": "Good news! Someone has submitted successfully!",
                                                  "emoji": True
                                                  }}],
                                   #user=user_id,
