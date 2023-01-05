@@ -63,19 +63,31 @@ def edit(body: dict, ack: Ack, client: WebClient):
                     },
                     "label": {
                         "type": "plain_text",
-                        "text": "Who will be the receipient of the form?"
+                        "text": "Place the person who reacted with email address in here please."
                     }
                 },
                 {
                     "type": "input",
-                    "block_id": "vto_from_channel_id_input",
+                    "block_id": "vto_channel_id_input",
                     "element": {
                         "type": "plain_text_input",
-                        "action_id": "vto_from_channel_id"
+                        "action_id": "vto_channel_id"
                     },
                     "label": {
                         "type": "plain_text",
-                        "text": "Insert a channel id variable in here."
+                        "text": "Place a channel variable in here please."
+                    }
+                },
+                {
+                    "type": "input",
+                    "block_id": "vto_message_link_input",
+                    "element": {
+                        "type": "plain_text_input",
+                        "action_id": "vto_message_link"
+                    },
+                    "label": {
+                        "type": "plain_text",
+                        "text": "Place a message link variable in here please."
                     }
                 }
             ]
@@ -96,8 +108,11 @@ def save(ack: Ack, client: WebClient, body: dict):
                 "vtoFormReceipient": {
                         "value": state_values["vto_form_receipient_input"]["vto_form_receipient"]["value"],
                     },
-                "vtoFromChannelId": {
-                        "value": state_values["vto_from_channel_id_input"]["vto_from_channel_id"]["value"],
+                "vtoChannelSource": {
+                        "value": state_values["vto_channel_id_input"]["vto_channel_id"]["value"],
+                    },
+                "vtoMessageLink": {
+                        "value": state_values["vto_message_link_input"]["vto_message_link"]["value"],
                     },
                 },
             "outputs": [
@@ -107,9 +122,14 @@ def save(ack: Ack, client: WebClient, body: dict):
                     "label": "VTO Form Receipient",
                 },
                 {
-                    "name": "vtoFromChannelId",
+                    "name": "vtoChannelSource",
                     "type": "text",
-                    "label": "Channel ID Source",
+                    "label": "Channel Source",
+                },
+                {
+                    "name": "vtoMessageLink",
+                    "type": "text",
+                    "label": "Message Link",
                 },
             ],
         },
@@ -369,13 +389,15 @@ def execute(body: dict, respond: Respond, client: WebClient):
             "workflow_step_execute_id": step["workflow_step_execute_id"],
             "outputs": {
                 "vtoFormReceipient": step["inputs"]["vtoFormReceipient"]["value"],
-                "vtoFromChannelId": step["inputs"]["vtoFromChannelId"]["value"],
+                "vtoChannelSource": step["inputs"]["vtoChannelSource"]["value"],
+                "vtoMessageLink": step["inputs"]["vtoMessageLink"]["value"],
             },
         },
     )
 
     vto_form_receipient = step["inputs"]["vtoFormReceipient"]["value"]
     vto_channel_source = re.sub('[^A-Za-z0-9]+', '', step["inputs"]["vtoFromChannelId"]["value"])
+    vto_message_link = step["inputs"]["vtoMessageLink"]["value"]
     
     user: SlackResponse = client.users_lookupByEmail(email=vto_form_receipient)
     vto_user_id = user["user"]["id"]
