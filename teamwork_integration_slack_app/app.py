@@ -147,6 +147,7 @@ def button_click(ack: Ack, body: dict, respond: Respond, client: WebClient):
                     "element": {
                         "type": "datetimepicker",
                         "action_id": "vto_start_time",
+                        "initial_date_time": int(datetime.today().replace(microsecond=0, second=0, minute=0).timestamp())
                     },
                     "label": {
                         "type": "plain_text",
@@ -159,6 +160,7 @@ def button_click(ack: Ack, body: dict, respond: Respond, client: WebClient):
                     "element": {
                         "type": "datetimepicker",
                         "action_id": "vto_end_time",
+                        "initial_date_time": int((datetime.today().replace(microsecond=0, second=0, minute=0) + timedelta(hours=1)).timestamp())
                     },
                     "label": {
                         "type": "plain_text",
@@ -335,7 +337,7 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
             "errors": {
                 "vto_start_time_input": "Conflicted with other request, Try again.",
                 "vto_end_time_input": "Conflicted with other request, Try again.",
-                "vto_time_zone": "Conflicted with other request, Try again."
+                "vto_timezone_input": "Conflicted with other request, Try again."
             }
         })
         return
