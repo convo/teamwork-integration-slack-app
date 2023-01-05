@@ -336,8 +336,7 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
             "response_action": "errors",
             "errors": {
                 "vto_start_time_input": "Conflicted with other request, Try again.",
-                "vto_end_time_input": "Conflicted with other request, Try again.",
-                "vto_timezone_input": "Conflicted with other request, Try again."
+                "vto_end_time_input": "Conflicted with other request, Try again."
             }
         })
         return
