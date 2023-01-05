@@ -231,13 +231,13 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
     vto_start_time = body["view"]["state"]["values"]["vto_start_time_input"]["vto_start_time"]["selected_date_time"]
     vto_end_time = body["view"]["state"]["values"]["vto_end_time_input"]["vto_end_time"]["selected_date_time"]
     # Validate inputs
-    if vto_start_time >= vto_end_time:
+    if vto_start_time >= vto_end_time or vto_end_time <= vto_start_time:
         print('ERRRRRRRROOOOOOORRRSSSS')
         ack({
             "response_action": "errors",
             "errors": {
                 "vto_start_time_input": "This cannot be more than or equal to the VTO End Time.",
-                "vto_end_time_input": "This cannot be more than or equal to the VTO Start Time."
+                "vto_end_time_input": "This cannot be less than or equal to the VTO Start Time."
             }
         })
         return
