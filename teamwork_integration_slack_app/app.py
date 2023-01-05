@@ -3,6 +3,7 @@ import logging
 import json
 import re
 import requests
+from urllib.parse import urlparse, parse_qs
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
 
@@ -96,7 +97,7 @@ def edit(body: dict, ack: Ack, client: WebClient):
 
 @app.view("vto_workflow_view")
 def save(ack: Ack, client: WebClient, body: dict):
-    
+    ack()
     state_values = body["view"]["state"]["values"]
     
     response: SlackResponse = client.api_call(
@@ -134,15 +135,16 @@ def save(ack: Ack, client: WebClient, body: dict):
             ],
         },
     )
-    ack()
 
 
 
 @app.action("open-leave-request-form")
 def button_click(ack: Ack, body: dict, respond: Respond, client: WebClient):
     print('--------------- open-leave-request-form ---------------')
+    logging.info(body)
     ack()
-    
+    print(body["container"])
+    print('--------------- response from creating open-leave-request-form ---------------')
     res: SlackResponse = client.views_open(
         trigger_id = body["trigger_id"],
         view={
@@ -240,10 +242,13 @@ def button_click(ack: Ack, body: dict, respond: Respond, client: WebClient):
                         "text": "VTO Timezone",
                     }
                 }
-            ]
+            ],
+            "private_metadata": f'{{\
+                "message_ts": "{body["container"]["message_ts"]}",\
+                "channel_id": "{body["container"]["channel_id"]}"\
+                }}'
         }
     )
-    #logging.info(res)
 
 @app.view("leave-request-submission")
 def handle_submission(ack: Ack, body: dict, client: WebClient):
@@ -262,9 +267,13 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
         })
         return
     
-    #logging.info(body)
+    logging.info(body)
     print('>>>>>> form data')
     logging.info(body["view"]["state"]["values"])
+    
+    private_metadata = json.loads(body["view"]["private_metadata"])
+    message_ts = private_metadata["message_ts"]
+    channel_id = private_metadata["channel_id"]
     
     user: SlackResponse = client.users_info(user=body["user"]["id"])
     user_id = user["user"]["id"]
@@ -274,6 +283,7 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
     vto_end_time = body["view"]["state"]["values"]["vto_end_time_input"]["vto_end_time"]["selected_date_time"]
     vto_timezone_label = body["view"]["state"]["values"]["vto_timezone_input"]["vto_timezone"]["selected_option"]["text"]["text"]
     vto_timezone = body["view"]["state"]["values"]["vto_timezone_input"]["vto_timezone"]["selected_option"]["value"]
+    
 
     print(f'{vto_start_time}\n{vto_end_time}\n{vto_timezone}')
     print(f'{os.environ.get("TEAMWORK_URL")}\n')
@@ -362,15 +372,18 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
         return
     elif final_response.status_code == 200:
         ack()
-        response = client.chat_postEphemeral(channel="test-teamwork-integration-app",
+        response = client.chat_postMessage(username="Success",
                                   blocks=[{"type": "section",
                                            "text": {"type": "plain_text",
                                                  "text": "Good news! Your request was submitted successfully.",
                                                  "emoji": True
                                                  }}],
-                                  user=user_id,
-                                  username="Success",
-                                  icon_url="https://convorelay.com/wp-content/uploads/2023/01/convo_bot_success_512.png")
+                                  #user=user_id,
+                                  icon_url="https://convorelay.com/wp-content/uploads/2023/01/convo_bot_success_512.png",
+                                  thread_ts=f"{message_ts}",
+                                  channel=f"{channel_id}",
+                                  text="test"
+                                  )
         print(final_response)
 
 @app.shortcut("leave-request-shortcut")
@@ -380,6 +393,7 @@ def open_modal(ack: Ack, body: dict, client: WebClient):
 
 @app.event("workflow_step_execute")
 def execute(body: dict, respond: Respond, client: WebClient):
+    print('--------------- workflow_step_execute ---------------')
     logging.info(body)
     
     step = body["event"]["workflow_step"]
@@ -396,8 +410,21 @@ def execute(body: dict, respond: Respond, client: WebClient):
     )
 
     vto_form_receipient = step["inputs"]["vtoFormReceipient"]["value"]
-    vto_channel_source = re.sub('[^A-Za-z0-9]+', '', step["inputs"]["vtoFromChannelId"]["value"])
+    vto_channel_source = re.sub('[^A-Za-z0-9]+', '', step["inputs"]["vtoChannelSource"]["value"])
     vto_message_link = step["inputs"]["vtoMessageLink"]["value"]
+    parsed_url = urlparse(vto_message_link)
+    msg_path = parsed_url.path
+    raw_msg_id = re.sub('\D','',os.path.split(msg_path)[-1])
+    message_id = raw_msg_id[:-6] + "." + raw_msg_id[-6:]
+    print('--------------- workflow_step_execute - check conv history ---------------')
+    # event_ts = body["event"]["event_ts"]
+    # response: SlackResponse = client.conversations_history(
+    #     channel=vto_channel_source,
+    #     inclusive=True,
+    #     latest=event_ts,
+    #     limit=1
+    # )
+    # print(response)
     
     user: SlackResponse = client.users_lookupByEmail(email=vto_form_receipient)
     vto_user_id = user["user"]["id"]
@@ -405,7 +432,7 @@ def execute(body: dict, respond: Respond, client: WebClient):
     
     try:
         # Call the chat.postMessage API method
-        response = client.chat_postEphemeral(
+        response = client.chat_postMessage(
             channel=f"{vto_channel_source}",
             text="Click button to open a leave request form.",
             blocks=[
@@ -432,9 +459,10 @@ def execute(body: dict, respond: Respond, client: WebClient):
                     ]
                 }
             ],
-            user=f"{vto_user_id}",
+            #user=f"{vto_user_id}",
             username="Teamwork Bot",
-            icon_url="https://drive.google.com/file/d/10sWFW8BDAVGVzX7Jk-J7mxeCVCn49e2p"
+            icon_url="https://drive.google.com/file/d/10sWFW8BDAVGVzX7Jk-J7mxeCVCn49e2p",
+            thread_ts=f"{message_id}"
         )
         print('---------------------------------------------------')
         print(response)
