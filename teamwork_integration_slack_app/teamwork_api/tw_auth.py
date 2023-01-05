@@ -37,7 +37,7 @@ class Employee_Leave_Request(object):
     Hours: int = 0
     CalculatedHours: int = 0
     Balance: str = ""
-    Status: int = 0
+    Status: int = 1
     StatusText: str = ""
     StatusDisplay: str = ""
     TimeHours: int = 0
@@ -55,7 +55,7 @@ class Employee_Leave_Request(object):
     SaveEntered: bool = False
     CanEdit: bool = True
     CanCancel: bool = False
-    CanDelete: bool = False
+    CanDelete: bool = True
     CanRemoveCancel: bool = False
     BalanceIsDays: bool = False
     OverBalance: bool = False
@@ -63,9 +63,9 @@ class Employee_Leave_Request(object):
     IsLeaveManagement: bool = False
     IsAllDay: bool = False
     Created: datetime = None
-    CanGrant: bool = False
+    CanGrant: bool = True
     CanRequest: bool = False
-    CanDeny: bool = False
+    CanDeny: bool = True
     HasPolicy: bool = True
     Messages: str = ""
     QuotaCheck: str = ""
