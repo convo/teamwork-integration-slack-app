@@ -241,7 +241,7 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
             }
         })
         return
-    # Validate inputs
+    
     #logging.info(body)
     print('>>>>>> form data')
     logging.info(body["view"]["state"]["values"])
