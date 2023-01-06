@@ -12,7 +12,8 @@ from slack_sdk.errors import SlackApiError
 from slack_sdk.web import SlackResponse
 
 from slack_bolt.authorization import AuthorizeResult
-from slack_bolt import App, Ack, Respond, workflows
+from slack_bolt import App, Ack, Respond
+from slack_bolt.adapter.aws_lambda import SlackRequestHandler
 
 from teamwork_api.tw_auth import TW_Connector, Employee_Leave_Request
 
@@ -35,7 +36,8 @@ def authorize(client: WebClient):
 app = App(signing_secret = os.environ["SLACK_SIGNING_SECRET"],
           token = os.environ["SLACK_BOT_TOKEN"],
           authorize=authorize,
-          raise_error_for_unhandled_request=True
+          raise_error_for_unhandled_request=True,
+          process_before_response=True
           )
 
 @app.action({"type": "workflow_step_edit", "callback_id": "leave_request"})
@@ -416,15 +418,6 @@ def execute(body: dict, respond: Respond, client: WebClient):
     msg_path = parsed_url.path
     raw_msg_id = re.sub('\D','',os.path.split(msg_path)[-1])
     message_id = raw_msg_id[:-6] + "." + raw_msg_id[-6:]
-    print('--------------- workflow_step_execute - check conv history ---------------')
-    # event_ts = body["event"]["event_ts"]
-    # response: SlackResponse = client.conversations_history(
-    #     channel=vto_channel_source,
-    #     inclusive=True,
-    #     latest=event_ts,
-    #     limit=1
-    # )
-    # print(response)
     
     user: SlackResponse = client.users_lookupByEmail(email=vto_form_receipient)
     vto_user_id = user["user"]["id"]
@@ -472,6 +465,10 @@ def execute(body: dict, respond: Respond, client: WebClient):
         print("Error sending message: {}".format(e))
     
     user: SlackResponse = client.users_lookupByEmail(email=step["inputs"]["vtoFormReceipient"]["value"])
+
+def handler(event, context):
+    slack_handler = SlackRequestHandler(app=app)
+    return slack_handler.handle(event, context)
 
 # Start teamwork integration slack app
 if __name__ == "__main__":
