@@ -14,8 +14,8 @@ python = "^3.9"
 python-dotenv = "^0.21.0"
 datetime = "^4.9"
 slack-bolt = "^1.16.1"
-slack-sdk = "^3.19.5"
 requests = "^2.28.1"
+slack-sdk = "^3.19.5"
 
 [build-system]
 requires = ["poetry-core"]
