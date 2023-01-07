@@ -140,8 +140,8 @@ def save(ack: Ack, client: WebClient, body: dict):
 @app.action("open-leave-request-form")
 def button_click(ack: Ack, body: dict, respond: Respond, client: WebClient):
     print('--------------- open-leave-request-form ---------------')
-    logging.info(body)
     ack()
+    logging.info(body)
     #print(body["container"])
     #print('--------------- response from creating open-leave-request-form ---------------')
     res = client.views_open(
@@ -282,9 +282,9 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
     channel_id = private_metadata["channel_id"]
     
     user = client.users_info(user=body["user"]["id"])
-    #user_id = user["user"]["id"]
+    user_id = user["user"]["id"]
     user_email = user["user"]["profile"]["email"]
-    user_email = "Alan.Abarbanell@convorelay.com"
+    #user_email = "Alan.Abarbanell@convorelay.com"
     vto_start_time = body["view"]["state"]["values"]["vto_start_time_input"]["vto_start_time"]["selected_date_time"]
     vto_end_time = body["view"]["state"]["values"]["vto_end_time_input"]["vto_end_time"]["selected_date_time"]
     vto_timezone_label = body["view"]["state"]["values"]["vto_timezone_input"]["vto_timezone"]["selected_option"]["text"]["text"]
@@ -311,14 +311,14 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
                                   blocks=[{"type": "section",
                                            "text": {
                                                "type": "mrkdwn",
-                                               "text": "Sorry, you cannot request VTO because you are not a registered employee in the Teamwork system. Please contact the admin for help."
+                                               "text": f"Sorry, <@{user_id}>, you cannot request VTO because you are not a registered employee in the Teamwork system. Please contact the admin for help."
                                            }
                                   }],
                                   #user=user_id,
                                   icon_url="https://convorelay.com/wp-content/uploads/2023/01/convo_bot_error_512.png",
                                   thread_ts=f"{message_ts}",
                                   channel=f"{channel_id}",
-                                  text="Sorry you cannot take VTO request because you are not registered employee in Teamwork system. Please contact admin for help."
+                                  text=f"Sorry, <@{user_id}>, you cannot take VTO request because you are not registered employee in Teamwork system. Please contact admin for help."
                                   #text=f"Good news! <@{user_id}|{user_name}> has submitted successfully!\nVTO Start Time: {formatted_vto_start_time}\nVTO End Time: {formatted_vto_end_time}\nVTO Timezone: {vto_timezone_label}"
                                   )
         return
