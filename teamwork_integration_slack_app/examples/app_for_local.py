@@ -8,17 +8,18 @@ from dotenv import load_dotenv
 from datetime import datetime, timedelta
 
 from slack_sdk import WebClient
+from slack_sdk.errors import SlackApiError
 from slack_sdk.web import SlackResponse
-from slack_bolt.authorization import AuthorizeResult
 
+from slack_bolt.authorization import AuthorizeResult
 from slack_bolt import App, Ack, Respond
 from slack_bolt.adapter.aws_lambda import SlackRequestHandler
 
-from teamwork_integration_slack_app.teamwork_api.tw_auth import TW_Connector, Employee_Leave_Request
+from teamwork_api.tw_auth import TW_Connector, Employee_Leave_Request
 
 load_dotenv()
 
-#logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.DEBUG)
 date_format = "%Y-%m-%dT%H:%M:%S.%fZ"
 
 # Initializes app with bot token and signing secret
@@ -31,17 +32,19 @@ def authorize(client: WebClient):
         auth_test_response=client.auth_test(token=token),
         bot_token=token,
     )
-
-app = App(
-    authorize=authorize,
-    process_before_response=True
-    )
+    
+app = App(signing_secret = os.environ["SLACK_SIGNING_SECRET"],
+          token = os.environ["SLACK_BOT_TOKEN"],
+          authorize=authorize,
+          raise_error_for_unhandled_request=True,
+          process_before_response=True
+          )
 
 @app.action({"type": "workflow_step_edit", "callback_id": "leave_request"})
 def edit(body: dict, ack: Ack, client: WebClient):
     
     ack()
-    configuration_view = client.views_open(
+    configuration_view: SlackResponse = client.views_open(
         trigger_id = body["trigger_id"],
         view = {
             "type": "workflow_step",
@@ -99,7 +102,7 @@ def save(ack: Ack, client: WebClient, body: dict):
     ack()
     state_values = body["view"]["state"]["values"]
     
-    response = client.api_call(
+    response: SlackResponse = client.api_call(
         api_method = "workflows.updateStep",
         json = {
             "workflow_step_edit_id": body["workflow_step"]["workflow_step_edit_id"],
@@ -142,9 +145,9 @@ def button_click(ack: Ack, body: dict, respond: Respond, client: WebClient):
     print('--------------- open-leave-request-form ---------------')
     logging.info(body)
     ack()
-    #print(body["container"])
-    #print('--------------- response from creating open-leave-request-form ---------------')
-    res = client.views_open(
+    print(body["container"])
+    print('--------------- response from creating open-leave-request-form ---------------')
+    res: SlackResponse = client.views_open(
         trigger_id = body["trigger_id"],
         view={
             "type": "modal",
@@ -201,13 +204,6 @@ def button_click(ack: Ack, body: dict, respond: Respond, client: WebClient):
                             {
                                 "text": {
                                     "type": "plain_text",
-                                    "text": "Eastern Standard Time",
-                                },
-                                "value": "est"
-                            },
-                            {
-                                "text": {
-                                    "type": "plain_text",
                                     "text": "Central Standard Time",
                                 },
                                 "value": "cst"
@@ -250,7 +246,7 @@ def button_click(ack: Ack, body: dict, respond: Respond, client: WebClient):
                 }
             ],
             "private_metadata": f'{{\
-                "message_ts": "{body["actions"][0]["block_id"]}",\
+                "message_ts": "{body["container"]["message_ts"]}",\
                 "channel_id": "{body["container"]["channel_id"]}"\
                 }}'
         }
@@ -258,7 +254,7 @@ def button_click(ack: Ack, body: dict, respond: Respond, client: WebClient):
 
 @app.view("leave-request-submission")
 def handle_submission(ack: Ack, body: dict, client: WebClient):
-    #print('--------------- leave-request-submission ---------------')
+    print('--------------- leave-request-submission ---------------')
     vto_start_time = body["view"]["state"]["values"]["vto_start_time_input"]["vto_start_time"]["selected_date_time"]
     vto_end_time = body["view"]["state"]["values"]["vto_end_time_input"]["vto_end_time"]["selected_date_time"]
     # Validate inputs
@@ -274,14 +270,14 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
         return
     
     logging.info(body)
-    #print('>>>>>> form data')
-    #logging.info(body["view"]["state"]["values"])
+    print('>>>>>> form data')
+    logging.info(body["view"]["state"]["values"])
     
     private_metadata = json.loads(body["view"]["private_metadata"])
     message_ts = private_metadata["message_ts"]
     channel_id = private_metadata["channel_id"]
     
-    user = client.users_info(user=body["user"]["id"])
+    user: SlackResponse = client.users_info(user=body["user"]["id"])
     user_id = user["user"]["id"]
     #user_email = user["user"]["profile"]["email"]
     user_email = "Alan.Abarbanell@convorelay.com"
@@ -304,19 +300,19 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
     # Find the employee information by email
     response = tw_connector.get_employee_by_email(user_email)
     tw_employee = response.json()['Data']
-    #print(f'--- Employee Information ---\n{tw_employee}\n---')
+    print(f'--- Employee Information ---\n{tw_employee}\n---')
     
     # Get the list of leave types
     response = tw_connector.get('/api/leave/leavetypes')
     tw_leave_types = response.json()
-    #print(f'--- List of Teamwork\'s Leave Types ---\n{tw_leave_types}\n---')
+    print(f'--- List of Teamwork\'s Leave Types ---\n{tw_leave_types}\n---')
     
     # Get a VTO Slack leave type
     if not len(tw_leave_types) == 0:
         for i in tw_leave_types:
             if i["Title"] == "VTO: Slack" or i["Code"] == "VTOSLACK":
                 selected_leave_type = i
-    #print(f'--- Selected VTO Slack type ---\n{selected_leave_type}\n---')
+    print(f'--- Selected VTO Slack type ---\n{selected_leave_type}\n---')
     
     # Format the datetime variables
     formatted_vto_start_time = datetime.strptime(datetime.fromtimestamp(vto_start_time).strftime(date_format), date_format)
@@ -356,7 +352,7 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
                                     "/api/leave/calcdailyhours/",
                                     tw_leave_request.to_json())    
     day_hours_obj = [{"DayHours": response.json()}]
-    #print(day_hours_obj)
+    print(day_hours_obj)
     tw_leave_request.from_json(json.dumps(day_hours_obj))
     
     # Submit a leave request!
@@ -366,7 +362,7 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
                                     endpoint = f'/api/leave/post/{tw_employee[0]["Id"]}',
                                     payload = json.dumps(leave_json_data),
                                     params = {"validatedOnServer":"false"})
-    #print(final_response)
+    print(final_response)
     if final_response.status_code == 409:
         ack({
             "response_action": "errors",
@@ -377,40 +373,33 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
         })
         return
     elif final_response.status_code == 200:
-        user_name = user["user"]["profile"]["display_name"]
         ack()
         response = client.chat_postMessage(username="Success",
                                   blocks=[{"type": "section",
-                                           "text": {"type": "mrkdwn",
-                                                 "text": f"VTO Submission from <@{user_id}> completed:\
-                                                 \n\n*VTO Start Time:* \n{formatted_vto_start_time.strftime('%I:%M%p')}\
-                                                 \n\n*VTO End Time:* \n{formatted_vto_end_time.strftime('%I:%M%p')}\
-                                                 \n\n*VTO Timezone:* \n{vto_timezone_label}"
+                                           "text": {"type": "plain_text",
+                                                 "text": "Good news! Someone has submitted successfully!",
+                                                 "emoji": True
                                                  }}],
                                   #user=user_id,
                                   icon_url="https://convorelay.com/wp-content/uploads/2023/01/convo_bot_success_512.png",
                                   thread_ts=f"{message_ts}",
                                   channel=f"{channel_id}",
                                   text="test"
-                                  #text=f"Good news! <@{user_id}|{user_name}> has submitted successfully!\nVTO Start Time: {formatted_vto_start_time}\nVTO End Time: {formatted_vto_end_time}\nVTO Timezone: {vto_timezone_label}"
                                   )
-        print(response)
-        #print(final_response)
+        print(final_response)
 
 @app.shortcut("leave-request-shortcut")
 def open_modal(ack: Ack, body: dict, client: WebClient):
     pass
     
-###################################
-############# workflow_step_execute
-###################################
+
 @app.event("workflow_step_execute")
 def execute(body: dict, respond: Respond, client: WebClient):
     print('--------------- workflow_step_execute ---------------')
     logging.info(body)
     
     step = body["event"]["workflow_step"]
-    completion = client.api_call(
+    completion: SlackResponse = client.api_call(
         api_method="workflows.stepCompleted",
         json = {
             "workflow_step_execute_id": step["workflow_step_execute_id"],
@@ -426,68 +415,61 @@ def execute(body: dict, respond: Respond, client: WebClient):
     vto_channel_source = re.sub('[^A-Za-z0-9]+', '', step["inputs"]["vtoChannelSource"]["value"])
     vto_message_link = step["inputs"]["vtoMessageLink"]["value"]
     parsed_url = urlparse(vto_message_link)
-    #query_params = parse_qs(parsed_url.query)
-    #channel_id = query_params['cid'][0]
-    #thread_ts = query_params['thread_ts'][0]
     msg_path = parsed_url.path
     raw_msg_id = re.sub('\D','',os.path.split(msg_path)[-1])
     message_id = raw_msg_id[:-6] + "." + raw_msg_id[-6:]
     
-    user = client.users_lookupByEmail(email=vto_form_receipient)
+    user: SlackResponse = client.users_lookupByEmail(email=vto_form_receipient)
     vto_user_id = user["user"]["id"]
     
-    # Call the chat_postMessage API method or private (chat_postEphemeral)
-    response = client.chat_postMessage(
-        channel=f"{vto_channel_source}",
-        text="Click button to open a leave request form.",
-        blocks=[
-            {
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": f"Hello <@{vto_user_id}>!\nTo submit your VTO, Please fill out this form."
-                }
-            },
-            {
-                "type": "actions",
-                "block_id": f"{message_id}",
-                "elements": [
-                    {
-                        "type": "button",
-                        "text": {
-                            "type": "plain_text",
-                            "text": "Open VTO form",
-                            "emoji": True
-                        },
-                        "value": "open-leave-request-form",
-                        "action_id": "open-leave-request-form",
-                        #"state": {
-                        #    "values": {
-                        #        "thread_ts": {
-                        #            "value": f"{message_id}"
-                        #        },
-                        #        "channel_id": {
-                        #            "value": f"{vto_channel_source}"
-                        #        }
-                        #    }
-                        #}
+    
+    try:
+        # Call the chat.postMessage API method
+        response = client.chat_postMessage(
+            channel=f"{vto_channel_source}",
+            text="Click button to open a leave request form.",
+            blocks=[
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": "Click to open up Leave Request form."
                     }
-                ]
-            }
-        ],
-        #user=f"{vto_user_id}",
-        username="Teamwork Bot",
-        icon_url="https://drive.google.com/file/d/10sWFW8BDAVGVzX7Jk-J7mxeCVCn49e2p",
-        thread_ts=f"{message_id}"
-    )
-
-SlackRequestHandler.clear_all_log_handlers()
-logging.basicConfig(format="%(asctime)s %(message)s", level=logging.DEBUG)
+                },
+                {
+                    "type": "actions",
+                    "elements": [
+                        {
+                            "type": "button",
+                            "text": {
+                                "type": "plain_text",
+                                "text": "Click Here",
+                                "emoji": True
+                            },
+                            "value": "open-leave-request-form",
+                            "action_id": "open-leave-request-form",
+                        }
+                    ]
+                }
+            ],
+            #user=f"{vto_user_id}",
+            username="Teamwork Bot",
+            icon_url="https://drive.google.com/file/d/10sWFW8BDAVGVzX7Jk-J7mxeCVCn49e2p",
+            thread_ts=f"{message_id}"
+        )
+        print('---------------------------------------------------')
+        print(response)
+        print('---------------------------------------------------')
+    except SlackApiError as e:
+        # Handle errors
+        print("Error sending message: {}".format(e))
+    
+    user: SlackResponse = client.users_lookupByEmail(email=step["inputs"]["vtoFormReceipient"]["value"])
 
 def handler(event, context):
     slack_handler = SlackRequestHandler(app=app)
     return slack_handler.handle(event, context)
 
 # Start teamwork integration slack app
-#if __name__ == "__main__":
-#    app.start(port=int(os.environ.get("PORT", 3000)))
+if __name__ == "__main__":
+    app.start(port=int(os.environ.get("PORT", 3000)))
