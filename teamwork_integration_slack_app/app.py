@@ -251,6 +251,8 @@ def button_click(ack: Ack, body: dict, respond: Respond, client: WebClient):
             ],
             "private_metadata": f'{{\
                 "message_ts": "{body["actions"][0]["block_id"]}",\
+                "button_ts": "{body["container"]["message_ts"]}",\
+                "button_response_url": "{body["state"]["response_url"]}",\
                 "channel_id": "{body["container"]["channel_id"]}"\
                 }}'
         }
@@ -258,7 +260,8 @@ def button_click(ack: Ack, body: dict, respond: Respond, client: WebClient):
 
 @app.view("leave-request-submission")
 def handle_submission(ack: Ack, body: dict, client: WebClient):
-    #print('--------------- leave-request-submission ---------------')
+    print('--------------- leave-request-submission ---------------')
+    ack()
     vto_start_time = body["view"]["state"]["values"]["vto_start_time_input"]["vto_start_time"]["selected_date_time"]
     vto_end_time = body["view"]["state"]["values"]["vto_end_time_input"]["vto_end_time"]["selected_date_time"]
     # Validate inputs
@@ -278,6 +281,8 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
     #logging.info(body["view"]["state"]["values"])
     
     private_metadata = json.loads(body["view"]["private_metadata"])
+    button_response_url = private_metadata["button_response_url"]
+    button_ts = private_metadata["button_ts"]
     message_ts = private_metadata["message_ts"]
     channel_id = private_metadata["channel_id"]
     
@@ -307,20 +312,23 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
         ack({
             "response_action": "clear"
         })
-        response = client.chat_postMessage(username="Error",
-                                  blocks=[{"type": "section",
-                                           "text": {
-                                               "type": "mrkdwn",
-                                               "text": f"Sorry, <@{user_id}>, you cannot request VTO because you are not a registered employee in the Teamwork system. Please contact the admin for help."
-                                           }
-                                  }],
-                                  #user=user_id,
-                                  icon_url="https://convorelay.com/wp-content/uploads/2023/01/convo_bot_error_512.png",
-                                  thread_ts=f"{message_ts}",
-                                  channel=f"{channel_id}",
-                                  text=f"Sorry, <@{user_id}>, you cannot take VTO request because you are not registered employee in Teamwork system. Please contact admin for help."
-                                  #text=f"Good news! <@{user_id}|{user_name}> has submitted successfully!\nVTO Start Time: {formatted_vto_start_time}\nVTO End Time: {formatted_vto_end_time}\nVTO Timezone: {vto_timezone_label}"
-                                  )
+        # Call the chat_postMessage or chat_postEphemeral
+        response = client.chat_postEphemeral(
+            user=user_id,
+            username="Error",
+            blocks=[{"type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"Sorry, <@{user_id}>, you cannot request VTO because you are not a registered \
+employee in the Teamwork system. Please contact the admin for help."
+                }
+            }],
+            icon_url="https://convorelay.com/wp-content/uploads/2023/01/convo_bot_error_512.png",
+            thread_ts=f"{message_ts}",
+            channel=f"{channel_id}",
+            text=f"Sorry, <@{user_id}>, you cannot take VTO request because you are not registered employee in Teamwork system. Please contact admin for help."
+            #text=f"Good news! <@{user_id}|{user_name}> has submitted successfully!\nVTO Start Time: {formatted_vto_start_time}\nVTO End Time: {formatted_vto_end_time}\nVTO Timezone: {vto_timezone_label}"
+        )
         return
     else:
         tw_employee = response.json()['Data']
@@ -399,48 +407,64 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
         elif final_response.status_code == 200:
             user_name = user["user"]["profile"]["display_name"]
             ack()
-            response = client.chat_postMessage(username="Success",
-                                      blocks=[{"type": "section",
-                                               "text": {"type": "mrkdwn",
-                                                     "text": f"VTO Submission from <@{user_id}> completed:\
-                                                     \n\n*VTO Start Time:* \n{formatted_vto_start_time.strftime('%A, %B %d %Y %I:%M%p')}\
-                                                     \n\n*VTO End Time:* \n{formatted_vto_end_time.strftime('%A, %B %d %Y %I:%M%p')}\
-                                                     \n\n*VTO Timezone:* \n{vto_timezone_label}"
-                                                     }}],
-                                      #user=user_id,
-                                      icon_url="https://convorelay.com/wp-content/uploads/2023/01/convo_bot_success_512.png",
-                                      thread_ts=f"{message_ts}",
-                                      channel=f"{channel_id}",
-                                      text="test"
-                                      #text=f"Good news! <@{user_id}|{user_name}> has submitted successfully!\nVTO Start Time: {formatted_vto_start_time}\nVTO End Time: {formatted_vto_end_time}\nVTO Timezone: {vto_timezone_label}"
-                                      )
+            # Call the chat_postMessage or chat_postEphemeral
+            response = client.chat_postEphemeral(
+                user=user_id,
+                username="Success",
+                blocks=[
+                    {
+                        "type": "section",
+                        "text": {
+                            "type": "mrkdwn",
+                            "text": f"VTO Submission from <@{user_id}> completed:\
+                            \n\n*VTO Start Time:* \n{formatted_vto_start_time.strftime('%A, %B %d %Y %I:%M%p')}\
+                            \n\n*VTO End Time:* \n{formatted_vto_end_time.strftime('%A, %B %d %Y %I:%M%p')}\
+                            \n\n*VTO Timezone:* \n{vto_timezone_label}"
+                        }
+                    }],
+                    icon_url="https://convorelay.com/wp-content/uploads/2023/01/convo_bot_success_512.png",
+                    thread_ts=f"{message_ts}",
+                    channel=f"{channel_id}",
+                    text="test"
+                    #text=f"Good news! <@{user_id}|{user_name}> has submitted successfully!\nVTO Start Time: {formatted_vto_start_time}\nVTO End Time: {formatted_vto_end_time}\nVTO Timezone: {vto_timezone_label}"
+            )
             print(response)
             #print(final_response)
 
 @app.shortcut("leave-request-shortcut")
 def open_modal(ack: Ack, body: dict, client: WebClient):
     pass
-    
+
+###################################
+#@app.event("workflow_step_completed")
+#def complete(ack: Ack, body: dict, client: WebClient, workflow_step):
+#    print('--------------- workflow_step_completed ---------------')
+#    ack()
+#    logging.info(body)
+
+
+
 ###################################
 ############# workflow_step_execute
 ###################################
 @app.event("workflow_step_execute")
-def execute(body: dict, respond: Respond, client: WebClient):
+def execute(ack: Ack, body: dict, respond: Respond, client: WebClient):
     print('--------------- workflow_step_execute ---------------')
+    ack()
     logging.info(body)
     
     step = body["event"]["workflow_step"]
-    completion = client.api_call(
-        api_method="workflows.stepCompleted",
-        json = {
-            "workflow_step_execute_id": step["workflow_step_execute_id"],
-            "outputs": {
-                "vtoFormReceipient": step["inputs"]["vtoFormReceipient"]["value"],
-                "vtoChannelSource": step["inputs"]["vtoChannelSource"]["value"],
-                "vtoMessageLink": step["inputs"]["vtoMessageLink"]["value"],
-            },
-        },
-    )
+    #completion = client.api_call(
+    #    api_method="workflows.stepCompleted",
+    #    json = {
+    #        "workflow_step_execute_id": step["workflow_step_execute_id"],
+    #        "outputs": {
+    #            "vtoFormReceipient": step["inputs"]["vtoFormReceipient"]["value"],
+    #           "vtoChannelSource": step["inputs"]["vtoChannelSource"]["value"],
+    #            "vtoMessageLink": step["inputs"]["vtoMessageLink"]["value"],
+    #        },
+    #    },
+    #)
 
     vto_form_receipient = step["inputs"]["vtoFormReceipient"]["value"]
     vto_channel_source = re.sub('[^A-Za-z0-9]+', '', step["inputs"]["vtoChannelSource"]["value"])
@@ -456,8 +480,9 @@ def execute(body: dict, respond: Respond, client: WebClient):
     user = client.users_lookupByEmail(email=vto_form_receipient)
     vto_user_id = user["user"]["id"]
     
-    # Call the chat_postMessage API method or private (chat_postEphemeral)
-    response = client.chat_postMessage(
+    # Call the chat_postMessage or chat_postEphemeral
+    response = client.chat_postEphemeral(
+        user=f"{vto_user_id}",
         channel=f"{vto_channel_source}",
         text="Click button to open a leave request form.",
         blocks=[
@@ -495,7 +520,6 @@ def execute(body: dict, respond: Respond, client: WebClient):
                 ]
             }
         ],
-        #user=f"{vto_user_id}",
         username="Teamwork Bot",
         icon_url="https://drive.google.com/file/d/10sWFW8BDAVGVzX7Jk-J7mxeCVCn49e2p",
         thread_ts=f"{message_id}"
