@@ -282,8 +282,8 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
     channel_id = private_metadata["channel_id"]
     
     user = client.users_info(user=body["user"]["id"])
-    user_id = user["user"]["id"]
-    #user_email = user["user"]["profile"]["email"]
+    #user_id = user["user"]["id"]
+    user_email = user["user"]["profile"]["email"]
     user_email = "Alan.Abarbanell@convorelay.com"
     vto_start_time = body["view"]["state"]["values"]["vto_start_time_input"]["vto_start_time"]["selected_date_time"]
     vto_end_time = body["view"]["state"]["values"]["vto_end_time_input"]["vto_end_time"]["selected_date_time"]
@@ -303,99 +303,119 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
     
     # Find the employee information by email
     response = tw_connector.get_employee_by_email(user_email)
-    tw_employee = response.json()['Data']
-    #print(f'--- Employee Information ---\n{tw_employee}\n---')
-    
-    # Get the list of leave types
-    response = tw_connector.get('/api/leave/leavetypes')
-    tw_leave_types = response.json()
-    #print(f'--- List of Teamwork\'s Leave Types ---\n{tw_leave_types}\n---')
-    
-    # Get a VTO Slack leave type
-    if not len(tw_leave_types) == 0:
-        for i in tw_leave_types:
-            if i["Title"] == "VTO: Slack" or i["Code"] == "VTOSLACK":
-                selected_leave_type = i
-    #print(f'--- Selected VTO Slack type ---\n{selected_leave_type}\n---')
-    
-    # Format the datetime variables
-    formatted_vto_start_time = datetime.strptime(datetime.fromtimestamp(vto_start_time).strftime(date_format), date_format)
-    formatted_vto_end_time = datetime.strptime(datetime.fromtimestamp(vto_end_time).strftime(date_format), date_format)
-    
-    # Initialize a leave request
-    tw_leave_request = Employee_Leave_Request(EmpId = tw_employee[0]["Id"],
-                                              EmpName = tw_employee[0]["FullName"],
-                                              Employees = [{"Id": tw_employee[0]["Id"],
-                                                            "Title": tw_employee[0]["FullName"]}],
-                                              Start = formatted_vto_start_time.date().strftime(date_format),
-                                              End = formatted_vto_end_time.date().strftime(date_format),
-                                              StartTime = formatted_vto_start_time.strftime(date_format),
-                                              EndTime = formatted_vto_end_time.strftime(date_format),
-                                              TypeId=selected_leave_type['Id'],
-                                              LeaveTypes = [selected_leave_type],
-                                              MinDate = datetime.today().strftime(date_format),
-                                              MaxDate = (datetime.today() + timedelta(days=365*2)).strftime(date_format),
-                                              DayHours = [{
-                                                  "Date": formatted_vto_start_time.date().strftime(date_format),
-                                                  "Count": None,
-                                                  "Value": 1,
-                                                  "Description": None,
-                                                  "Id": 0,
-                                                  "Title": None
-                                                  }]
-                                              )
-    
-    # Validate leave request by calculating & checking daily hours...
-    # response_check_daily_hours = tw_connector.request("PUT",
-    #                                     "/api/leave/checkdailyhours",
-    #                                     tw_leave_request.to_json())
-    # tw_leave_request = tw_leave_request.from_json(response_check_daily_hours)
-    
-    # Calculate the daily hours of a leave request
-    response = tw_connector.request("PUT",
-                                    "/api/leave/calcdailyhours/",
-                                    tw_leave_request.to_json())    
-    day_hours_obj = [{"DayHours": response.json()}]
-    #print(day_hours_obj)
-    tw_leave_request.from_json(json.dumps(day_hours_obj))
-    
-    # Submit a leave request!
-    print(json.loads(tw_leave_request.to_json()))
-    leave_json_data = json.loads(tw_leave_request.to_json())
-    final_response = tw_connector.request(request_method = "PUT",
-                                    endpoint = f'/api/leave/post/{tw_employee[0]["Id"]}',
-                                    payload = json.dumps(leave_json_data),
-                                    params = {"validatedOnServer":"false"})
-    #print(final_response)
-    if final_response.status_code == 409:
+    if response.json()['Total'] == 0:
         ack({
-            "response_action": "errors",
-            "errors": {
-                "vto_start_time_input": "Conflicted with other request, Try again.",
-                "vto_end_time_input": "Conflicted with other request, Try again."
-            }
+            "response_action": "clear"
         })
-        return
-    elif final_response.status_code == 200:
-        user_name = user["user"]["profile"]["display_name"]
-        ack()
-        response = client.chat_postMessage(username="Success",
+        response = client.chat_postMessage(username="Error",
                                   blocks=[{"type": "section",
-                                           "text": {"type": "mrkdwn",
-                                                 "text": f"VTO Submission from <@{user_id}> completed:\
-                                                 \n\n*VTO Start Time:* \n{formatted_vto_start_time.strftime('%I:%M%p')}\
-                                                 \n\n*VTO End Time:* \n{formatted_vto_end_time.strftime('%I:%M%p')}\
-                                                 \n\n*VTO Timezone:* \n{vto_timezone_label}"
-                                                 }}],
+                                           "text": {
+                                               "type": "mrkdwn",
+                                               "text": "Sorry, you cannot request VTO because you are not a registered employee in the Teamwork system. Please contact the admin for help."
+                                           }
+                                  }],
                                   #user=user_id,
-                                  icon_url="https://convorelay.com/wp-content/uploads/2023/01/convo_bot_success_512.png",
+                                  icon_url="https://convorelay.com/wp-content/uploads/2023/01/convo_bot_error_512.png",
                                   thread_ts=f"{message_ts}",
                                   channel=f"{channel_id}",
-                                  text="test"
+                                  text="Sorry you cannot take VTO request because you are not registered employee in Teamwork system. Please contact admin for help."
                                   #text=f"Good news! <@{user_id}|{user_name}> has submitted successfully!\nVTO Start Time: {formatted_vto_start_time}\nVTO End Time: {formatted_vto_end_time}\nVTO Timezone: {vto_timezone_label}"
                                   )
-        print(response)
+        return
+    else:
+        tw_employee = response.json()['Data']
+        #print(f'--- Employee Information ---\n{tw_employee}\n---')
+        
+        # Get the list of leave types
+        response = tw_connector.get('/api/leave/leavetypes')
+        tw_leave_types = response.json()
+        #print(f'--- List of Teamwork\'s Leave Types ---\n{tw_leave_types}\n---')
+        
+        # Get a VTO Slack leave type
+        if not len(tw_leave_types) == 0:
+            for i in tw_leave_types:
+                if i["Title"] == "VTO: Slack" or i["Code"] == "VTOSLACK":
+                    selected_leave_type = i
+        #print(f'--- Selected VTO Slack type ---\n{selected_leave_type}\n---')
+        
+        # Format the datetime variables
+        formatted_vto_start_time = datetime.strptime(datetime.fromtimestamp(vto_start_time).strftime(date_format), date_format)
+        formatted_vto_end_time = datetime.strptime(datetime.fromtimestamp(vto_end_time).strftime(date_format), date_format)
+        
+        # Initialize a leave request
+        tw_leave_request = Employee_Leave_Request(EmpId = tw_employee[0]["Id"],
+                                                  EmpName = tw_employee[0]["FullName"],
+                                                  Employees = [{"Id": tw_employee[0]["Id"],
+                                                                "Title": tw_employee[0]["FullName"]}],
+                                                  Start = formatted_vto_start_time.date().strftime(date_format),
+                                                  End = formatted_vto_end_time.date().strftime(date_format),
+                                                  StartTime = formatted_vto_start_time.strftime(date_format),
+                                                  EndTime = formatted_vto_end_time.strftime(date_format),
+                                                  TypeId=selected_leave_type['Id'],
+                                                  LeaveTypes = [selected_leave_type],
+                                                  MinDate = datetime.today().strftime(date_format),
+                                                  MaxDate = (datetime.today() + timedelta(days=365*2)).strftime(date_format),
+                                                  DayHours = [{
+                                                      "Date": formatted_vto_start_time.date().strftime(date_format),
+                                                      "Count": None,
+                                                      "Value": 1,
+                                                      "Description": None,
+                                                      "Id": 0,
+                                                      "Title": None
+                                                      }]
+                                                  )
+        
+        # Validate leave request by calculating & checking daily hours...
+        # response_check_daily_hours = tw_connector.request("PUT",
+        #                                     "/api/leave/checkdailyhours",
+        #                                     tw_leave_request.to_json())
+        # tw_leave_request = tw_leave_request.from_json(response_check_daily_hours)
+        
+        # Calculate the daily hours of a leave request
+        response = tw_connector.request("PUT",
+                                        "/api/leave/calcdailyhours/",
+                                        tw_leave_request.to_json())    
+        day_hours_obj = [{"DayHours": response.json()}]
+        #print(day_hours_obj)
+        tw_leave_request.from_json(json.dumps(day_hours_obj))
+        
+        # Submit a leave request!
+        print(json.loads(tw_leave_request.to_json()))
+        leave_json_data = json.loads(tw_leave_request.to_json())
+        final_response = tw_connector.request(request_method = "PUT",
+                                        endpoint = f'/api/leave/post/{tw_employee[0]["Id"]}',
+                                        payload = json.dumps(leave_json_data),
+                                        params = {"validatedOnServer":"false"})
         #print(final_response)
+        if final_response.status_code == 409:
+            ack({
+                "response_action": "errors",
+                "errors": {
+                    "vto_start_time_input": "Conflicted with other request, Try again.",
+                    "vto_end_time_input": "Conflicted with other request, Try again."
+                }
+            })
+            return
+        elif final_response.status_code == 200:
+            user_name = user["user"]["profile"]["display_name"]
+            ack()
+            response = client.chat_postMessage(username="Success",
+                                      blocks=[{"type": "section",
+                                               "text": {"type": "mrkdwn",
+                                                     "text": f"VTO Submission from <@{user_id}> completed:\
+                                                     \n\n*VTO Start Time:* \n{formatted_vto_start_time.strftime('%A, %B %d %Y %I:%M%p')}\
+                                                     \n\n*VTO End Time:* \n{formatted_vto_end_time.strftime('%A, %B %d %Y %I:%M%p')}\
+                                                     \n\n*VTO Timezone:* \n{vto_timezone_label}"
+                                                     }}],
+                                      #user=user_id,
+                                      icon_url="https://convorelay.com/wp-content/uploads/2023/01/convo_bot_success_512.png",
+                                      thread_ts=f"{message_ts}",
+                                      channel=f"{channel_id}",
+                                      text="test"
+                                      #text=f"Good news! <@{user_id}|{user_name}> has submitted successfully!\nVTO Start Time: {formatted_vto_start_time}\nVTO End Time: {formatted_vto_end_time}\nVTO Timezone: {vto_timezone_label}"
+                                      )
+            print(response)
+            #print(final_response)
 
 @app.shortcut("leave-request-shortcut")
 def open_modal(ack: Ack, body: dict, client: WebClient):
