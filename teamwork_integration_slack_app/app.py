@@ -252,12 +252,11 @@ def button_click(ack: Ack, body: dict, respond: Respond, client: WebClient):
             "private_metadata": f'{{\
                 "message_ts": "{body["actions"][0]["block_id"]}",\
                 "button_ts": "{body["container"]["message_ts"]}",\
-                "button_response_url": "{body["state"]["response_url"]}",\
                 "channel_id": "{body["container"]["channel_id"]}"\
                 }}'
         }
     )
-
+#"button_response_url": "{body["state"]["response_url"]}",\
 @app.view("leave-request-submission")
 def handle_submission(ack: Ack, body: dict, client: WebClient):
     print('--------------- leave-request-submission ---------------')
@@ -319,8 +318,7 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
             blocks=[{"type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": f"Sorry, <@{user_id}>, you cannot request VTO because you are not a registered \
-employee in the Teamwork system. Please contact the admin for help."
+                    "text": f"Sorry, <@{user_id}>, you cannot request VTO because you are not a registered employee in the Teamwork system. Please contact the admin for help."
                 }
             }],
             icon_url="https://convorelay.com/wp-content/uploads/2023/01/convo_bot_error_512.png",
@@ -505,17 +503,7 @@ def execute(ack: Ack, body: dict, respond: Respond, client: WebClient):
                             "emoji": True
                         },
                         "value": "open-leave-request-form",
-                        "action_id": "open-leave-request-form",
-                        #"state": {
-                        #    "values": {
-                        #        "thread_ts": {
-                        #            "value": f"{message_id}"
-                        #        },
-                        #        "channel_id": {
-                        #            "value": f"{vto_channel_source}"
-                        #        }
-                        #    }
-                        #}
+                        "action_id": "open-leave-request-form"
                     }
                 ]
             }
