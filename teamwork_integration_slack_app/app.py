@@ -5,7 +5,7 @@ import re
 import requests
 from urllib.parse import urlparse, parse_qs
 from dotenv import load_dotenv
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from slack_sdk import WebClient
 from slack_sdk.web import SlackResponse
@@ -19,7 +19,7 @@ from teamwork_integration_slack_app.teamwork_api.tw_auth import TW_Connector, Em
 load_dotenv()
 
 #logging.basicConfig(level=logging.DEBUG)
-date_format = "%Y-%m-%dT%H:%M:%S.%fZ"
+date_format = "%Y-%m-%dT%H:%M:%S%z"
 
 # Initializes app with bot token and signing secret
 def authorize(client: WebClient):
@@ -256,7 +256,7 @@ def button_click(ack: Ack, body: dict, respond: Respond, client: WebClient):
                 }}'
         }
     )
-#"button_response_url": "{body["state"]["response_url"]}",\
+
 @app.view("leave-request-submission")
 def handle_submission(ack: Ack, body: dict, client: WebClient):
     print('--------------- leave-request-submission ---------------')
@@ -280,15 +280,15 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
     #logging.info(body["view"]["state"]["values"])
     
     private_metadata = json.loads(body["view"]["private_metadata"])
-    button_response_url = private_metadata["button_response_url"]
     button_ts = private_metadata["button_ts"]
     message_ts = private_metadata["message_ts"]
     channel_id = private_metadata["channel_id"]
     
     user = client.users_info(user=body["user"]["id"])
     user_id = user["user"]["id"]
-    user_email = user["user"]["profile"]["email"]
-    #user_email = "Alan.Abarbanell@convorelay.com"
+    #user_email = user["user"]["profile"]["email"]
+    user_tz_offset = user["user"]["tz_offset"]
+    user_email = "Alan.Abarbanell@convorelay.com"
     vto_start_time = body["view"]["state"]["values"]["vto_start_time_input"]["vto_start_time"]["selected_date_time"]
     vto_end_time = body["view"]["state"]["values"]["vto_end_time_input"]["vto_end_time"]["selected_date_time"]
     vto_timezone_label = body["view"]["state"]["values"]["vto_timezone_input"]["vto_timezone"]["selected_option"]["text"]["text"]
@@ -312,8 +312,8 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
             "response_action": "clear"
         })
         # Call the chat_postMessage or chat_postEphemeral
-        response = client.chat_postEphemeral(
-            user=user_id,
+        response = client.chat_postMessage(
+            #user=user_id,
             username="Error",
             blocks=[{"type": "section",
                 "text": {
@@ -332,6 +332,50 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
         tw_employee = response.json()['Data']
         #print(f'--- Employee Information ---\n{tw_employee}\n---')
         
+        # Get the active location of an employee's
+        my_tw_location = []
+        response = tw_connector.request(request_method="GET",
+                                        endpoint=f"/api/employees/{tw_employee[0]['Id']}/locations",
+                                        payload="")
+        tw_locations = response.json()
+        print(tw_locations)
+        if not len(tw_locations) == 0:
+            for loc in tw_locations:
+                if loc['IsDefault']:
+                    response = tw_connector.get(f"/api/locations/{loc['BusinessId']}").json()
+                    response = json.dumps(response)
+                    loc['TimeZone'] = json.loads(response)['TimeZone']
+                    my_tw_location = loc
+                    
+        print(my_tw_location)
+        
+        # Create a timedelta object represents Slack's timezone offset
+        vto_start_time_timestamp = datetime.fromtimestamp(vto_start_time)
+        vto_end_time_timestamp = datetime.fromtimestamp(vto_end_time)
+        #formatted_vto_start_time = datetime.strptime(vto_start_time,date_format)
+        #formatted_vto_end_time = datetime.strptime(vto_end_time,date_format)
+        
+        # Create a timedelta object represents Slack's timezone offset
+        my_slack_offset_tz = timezone(timedelta(seconds=user_tz_offset))
+        #my_slack_tz = timezone(my_slack_offset)
+        vto_start_time_dt = vto_start_time_timestamp.replace(tzinfo=my_slack_offset_tz)
+        vto_end_time_dt = vto_end_time_timestamp.replace(tzinfo=my_slack_offset_tz)
+        
+        # Parse the location's timezone offset
+        my_tw_loc_offset = my_tw_location['TimeZone'][1:-1].split(") ")[0]
+        my_tw_loc_offset_timetz = datetime.strptime(my_tw_loc_offset, "UTC%z").timetz()
+        
+        # Create a timedelta object representing the time zone offset
+        my_tw_loc_offset_timedelta = timedelta(hours=my_tw_loc_offset_timetz.hour,
+                                               minutes=my_tw_loc_offset_timetz.minute)
+        
+        # Create a time zone object for the new time zone
+        my_tw_loc_tz_dt = timezone(my_tw_loc_offset_timedelta)
+        
+        # Convert the datetime object to the new time zone
+        converted_vto_start_time = vto_start_time_dt.astimezone(my_tw_loc_tz_dt)
+        converted_vto_end_time = vto_end_time_dt.astimezone(my_tw_loc_tz_dt)
+        
         # Get the list of leave types
         response = tw_connector.get('/api/leave/leavetypes')
         tw_leave_types = response.json()
@@ -345,24 +389,24 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
         #print(f'--- Selected VTO Slack type ---\n{selected_leave_type}\n---')
         
         # Format the datetime variables
-        formatted_vto_start_time = datetime.strptime(datetime.fromtimestamp(vto_start_time).strftime(date_format), date_format)
-        formatted_vto_end_time = datetime.strptime(datetime.fromtimestamp(vto_end_time).strftime(date_format), date_format)
+        #formatted_vto_start_time = datetime.strptime(datetime.fromtimestamp(vto_start_time).strftime(date_format), date_format)
+        #formatted_vto_end_time = datetime.strptime(datetime.fromtimestamp(vto_end_time).strftime(date_format), date_format)
         
         # Initialize a leave request
         tw_leave_request = Employee_Leave_Request(EmpId = tw_employee[0]["Id"],
                                                   EmpName = tw_employee[0]["FullName"],
                                                   Employees = [{"Id": tw_employee[0]["Id"],
                                                                 "Title": tw_employee[0]["FullName"]}],
-                                                  Start = formatted_vto_start_time.date().strftime(date_format),
-                                                  End = formatted_vto_end_time.date().strftime(date_format),
-                                                  StartTime = formatted_vto_start_time.strftime(date_format),
-                                                  EndTime = formatted_vto_end_time.strftime(date_format),
+                                                  Start = converted_vto_start_time.date().strftime(date_format),
+                                                  End = converted_vto_end_time.date().strftime(date_format),
+                                                  StartTime = converted_vto_start_time.strftime(date_format),
+                                                  EndTime = converted_vto_end_time.strftime(date_format),
                                                   TypeId=selected_leave_type['Id'],
                                                   LeaveTypes = [selected_leave_type],
                                                   MinDate = datetime.today().strftime(date_format),
                                                   MaxDate = (datetime.today() + timedelta(days=365*2)).strftime(date_format),
                                                   DayHours = [{
-                                                      "Date": formatted_vto_start_time.date().strftime(date_format),
+                                                      "Date": converted_vto_start_time.date().strftime(date_format),
                                                       "Count": None,
                                                       "Value": 1,
                                                       "Description": None,
@@ -378,9 +422,9 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
         # tw_leave_request = tw_leave_request.from_json(response_check_daily_hours)
         
         # Calculate the daily hours of a leave request
-        response = tw_connector.request("PUT",
-                                        "/api/leave/calcdailyhours/",
-                                        tw_leave_request.to_json())    
+        response = tw_connector.request(request_method = "PUT",
+                                        endpoint = "/api/leave/calcdailyhours/",
+                                        payload = tw_leave_request.to_json())
         day_hours_obj = [{"DayHours": response.json()}]
         #print(day_hours_obj)
         tw_leave_request.from_json(json.dumps(day_hours_obj))
@@ -406,8 +450,8 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
             user_name = user["user"]["profile"]["display_name"]
             ack()
             # Call the chat_postMessage or chat_postEphemeral
-            response = client.chat_postEphemeral(
-                user=user_id,
+            response = client.chat_postMessage(
+                #user=user_id,
                 username="Success",
                 blocks=[
                     {
@@ -415,8 +459,8 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
                         "text": {
                             "type": "mrkdwn",
                             "text": f"VTO Submission from <@{user_id}> completed:\
-                            \n\n*VTO Start Time:* \n{formatted_vto_start_time.strftime('%A, %B %d %Y %I:%M%p')}\
-                            \n\n*VTO End Time:* \n{formatted_vto_end_time.strftime('%A, %B %d %Y %I:%M%p')}\
+                            \n\n*VTO Start Time:* \n{vto_start_time_dt.strftime('%A, %B %d %Y %I:%M%p')}\
+                            \n\n*VTO End Time:* \n{vto_end_time_dt.strftime('%A, %B %d %Y %I:%M%p')}\
                             \n\n*VTO Timezone:* \n{vto_timezone_label}"
                         }
                     }],
@@ -479,8 +523,8 @@ def execute(ack: Ack, body: dict, respond: Respond, client: WebClient):
     vto_user_id = user["user"]["id"]
     
     # Call the chat_postMessage or chat_postEphemeral
-    response = client.chat_postEphemeral(
-        user=f"{vto_user_id}",
+    response = client.chat_postMessage(
+        #user=f"{vto_user_id}",
         channel=f"{vto_channel_source}",
         text="Click button to open a leave request form.",
         blocks=[
