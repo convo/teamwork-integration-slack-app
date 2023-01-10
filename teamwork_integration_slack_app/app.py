@@ -51,7 +51,7 @@ def edit(body: dict, ack: Ack, client: WebClient):
                     "type": "section",
                     "text": {
                         "type": "plain_text",
-                        "text": "Leave Request Trigger Setting"
+                        "text": "VTO Request Trigger Setting"
                     },
                 },
                 {
@@ -75,7 +75,7 @@ def edit(body: dict, ack: Ack, client: WebClient):
                     },
                     "label": {
                         "type": "plain_text",
-                        "text": "Place a channel variable in here please."
+                        "text": "Place the channel variable where the react was used in please."
                     }
                 },
                 {
@@ -87,7 +87,7 @@ def edit(body: dict, ack: Ack, client: WebClient):
                     },
                     "label": {
                         "type": "plain_text",
-                        "text": "Place a message link variable in here please."
+                        "text": "Place \"Link to message reacted on\" variable in here please."
                     }
                 }
             ]
@@ -135,8 +135,6 @@ def save(ack: Ack, client: WebClient, body: dict):
         },
     )
 
-
-
 @app.action("open-leave-request-form")
 def button_click(ack: Ack, body: dict, respond: Respond, client: WebClient):
     print('--------------- open-leave-request-form ---------------')
@@ -151,7 +149,7 @@ def button_click(ack: Ack, body: dict, respond: Respond, client: WebClient):
             "callback_id": "leave-request-submission",
             "title": {
                 "type": "plain_text",
-                "text": "VTO Leave Request",
+                "text": "VTO Request Form",
             },
             "submit": {
                 "type": "plain_text",
@@ -273,7 +271,6 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
     vto_end_time = body["view"]["state"]["values"]["vto_end_time_input"]["vto_end_time"]["selected_date_time"]
     # Validate inputs
     if vto_start_time >= vto_end_time or vto_end_time <= vto_start_time:
-        print('ERRRRRRRROOOOOOORRRSSSS')
         ack({
             "response_action": "errors",
             "errors": {
@@ -292,8 +289,6 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
     user_email = user["user"]["profile"]["email"]
     user_tz_offset = user["user"]["tz_offset"]
     #user_email = "Alan.Abarbanell@convorelay.com"
-    vto_start_time = body["view"]["state"]["values"]["vto_start_time_input"]["vto_start_time"]["selected_date_time"]
-    vto_end_time = body["view"]["state"]["values"]["vto_end_time_input"]["vto_end_time"]["selected_date_time"]
     
 
     print(f'{vto_start_time}\n{vto_end_time}')
@@ -309,9 +304,6 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
     # Find the employee information by email
     response = tw_connector.get_employee_by_email(user_email)
     if response.json()['Total'] == 0:
-        ack({
-            "response_action": "clear"
-        })
         # Call the chat_postMessage or chat_postEphemeral or chat_update
         ack({"response_action": "clear"})
         if (user_id == message_mention):
