@@ -142,7 +142,7 @@ def button_click(ack: Ack, body: dict, respond: Respond, client: WebClient):
     print('--------------- open-leave-request-form ---------------')
     ack()
     logging.info(body)
-
+    message_mention = re.search(r"<@(.*?)>",body["message"]["blocks"][0]["text"]["text"]).group(1)
     #print('--------------- response from creating open-leave-request-form ---------------')
     res = client.views_open(
         trigger_id = body["trigger_id"],
@@ -253,6 +253,7 @@ def button_click(ack: Ack, body: dict, respond: Respond, client: WebClient):
                 "thread_ts": "{body["container"]["thread_ts"]}",\
                 "message_ts": "{body["container"]["message_ts"]}",\
                 "response_url": "{body["response_url"]}",\
+                "message_mention": "{message_mention}",\
                 "channel_id": "{body["container"]["channel_id"]}"\
                 }}'
         }
@@ -265,6 +266,7 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
     private_metadata = json.loads(body["view"]["private_metadata"])
     response_url = private_metadata["response_url"]
     message_ts = private_metadata["message_ts"]
+    message_mention = private_metadata["message_mention"]
     thread_ts = private_metadata["thread_ts"]
     channel_id = private_metadata["channel_id"]
     vto_start_time = body["view"]["state"]["values"]["vto_start_time_input"]["vto_start_time"]["selected_date_time"]
@@ -311,7 +313,9 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
             "response_action": "clear"
         })
         # Call the chat_postMessage or chat_postEphemeral or chat_update
-        response = client.chat_delete(channel=channel_id,ts=message_ts)
+        ack({"response_action": "clear"})
+        if (user_id == message_mention):
+            response = client.chat_delete(channel=channel_id,ts=message_ts)
         response = client.chat_postMessage(
             #user=user_id,
             username="Error",
@@ -448,9 +452,10 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
             return
         elif final_response.status_code == 200:
             user_name = user["user"]["profile"]["display_name"]
-            ack()
+            ack({"response_action": "clear"})
             # Call the chat_postMessage or chat_postEphemeral
-            response = client.chat_delete(channel=channel_id,ts=message_ts)
+            if (user_id == message_mention):
+                response = client.chat_delete(channel=channel_id,ts=message_ts)
             response = client.chat_postMessage(
                 #user=user_id,
                 username="Success",
