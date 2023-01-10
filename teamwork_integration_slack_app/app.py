@@ -311,7 +311,8 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
             "response_action": "clear"
         })
         # Call the chat_postMessage or chat_postEphemeral or chat_update
-        response = client.chat_update(
+        response = client.chat_delete(channel=channel_id,ts=message_ts)
+        response = client.chat_postMessage(
             #user=user_id,
             username="Error",
             blocks=[{"type": "section",
@@ -321,7 +322,7 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
                 }
             }],
             icon_url="https://convorelay.com/wp-content/uploads/2023/01/convo_bot_error_512.png",
-            ts=f"{message_ts}",
+            thread_ts=f"{thread_ts}",
             channel=f"{channel_id}",
             text=f"Sorry, <@{user_id}>, you cannot take VTO request because you are not registered employee in Teamwork system. Please contact admin for help."
             #text=f"Good news! <@{user_id}|{user_name}> has submitted successfully!\nVTO Start Time: {formatted_vto_start_time}\nVTO End Time: {formatted_vto_end_time}\nVTO Timezone: {vto_timezone_label}"
@@ -449,7 +450,8 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
             user_name = user["user"]["profile"]["display_name"]
             ack()
             # Call the chat_postMessage or chat_postEphemeral
-            response = client.chat_update(
+            response = client.chat_delete(channel=channel_id,ts=message_ts)
+            response = client.chat_postMessage(
                 #user=user_id,
                 username="Success",
                 blocks=[
@@ -464,7 +466,7 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
                         }
                     }],
                     icon_url="https://convorelay.com/wp-content/uploads/2023/01/convo_bot_success_512.png",
-                    ts=f"{message_ts}",
+                    thread_ts=f"{thread_ts}",
                     channel=f"{channel_id}",
                     text="test"
                     #text=f"Good news! <@{user_id}|{user_name}> has submitted successfully!\nVTO Start Time: {formatted_vto_start_time}\nVTO End Time: {formatted_vto_end_time}\nVTO Timezone: {vto_timezone_label}"
