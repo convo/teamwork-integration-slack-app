@@ -457,9 +457,8 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
                         "text": {
                             "type": "mrkdwn",
                             "text": f"VTO Submission from <@{user_id}> completed:\
-                            \n\n*VTO Start Time:* \n{vto_start_time_dt.strftime('%A, %B %d %Y %I:%M%p')}\
-                            \n\n*VTO End Time:* \n{vto_end_time_dt.strftime('%A, %B %d %Y %I:%M%p')}"
-                            #\n\n*VTO Timezone:* \n{vto_timezone_label}"
+                            \n*VTO Start Time:* \n{vto_start_time_dt.strftime('%A, %B %d %Y %I:%M%p')}\
+                            \n*VTO End Time:* \n{vto_end_time_dt.strftime('%A, %B %d %Y %I:%M%p')}"
                         }
                     }],
                     icon_url="https://convorelay.com/wp-content/uploads/2023/01/convo_bot_success_512.png",
@@ -469,7 +468,7 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
                     #text=f"Good news! <@{user_id}|{user_name}> has submitted successfully!\nVTO Start Time: {formatted_vto_start_time}\nVTO End Time: {formatted_vto_end_time}\nVTO Timezone: {vto_timezone_label}"
             )
             print(response)
-            #print(final_response)
+            return
 
 @app.shortcut("leave-request-shortcut")
 def open_modal(ack: Ack, body: dict, client: WebClient):
