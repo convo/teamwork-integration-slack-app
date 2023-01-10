@@ -142,7 +142,7 @@ def button_click(ack: Ack, body: dict, respond: Respond, client: WebClient):
     print('--------------- open-leave-request-form ---------------')
     ack()
     logging.info(body)
-    #print(body["container"])
+
     #print('--------------- response from creating open-leave-request-form ---------------')
     res = client.views_open(
         trigger_id = body["trigger_id"],
@@ -250,8 +250,9 @@ def button_click(ack: Ack, body: dict, respond: Respond, client: WebClient):
                 # }
             ],
             "private_metadata": f'{{\
-                "message_ts": "{body["actions"][0]["block_id"]}",\
-                "button_ts": "{body["container"]["message_ts"]}",\
+                "thread_ts": "{body["container"]["thread_ts"]}",\
+                "message_ts": "{body["container"]["message_ts"]}",\
+                "response_url": "{body["response_url"]}",\
                 "channel_id": "{body["container"]["channel_id"]}"\
                 }}'
         }
@@ -261,6 +262,11 @@ def button_click(ack: Ack, body: dict, respond: Respond, client: WebClient):
 def handle_submission(ack: Ack, body: dict, client: WebClient):
     print('--------------- leave-request-submission ---------------')
     ack()
+    private_metadata = json.loads(body["view"]["private_metadata"])
+    response_url = private_metadata["response_url"]
+    message_ts = private_metadata["message_ts"]
+    thread_ts = private_metadata["thread_ts"]
+    channel_id = private_metadata["channel_id"]
     vto_start_time = body["view"]["state"]["values"]["vto_start_time_input"]["vto_start_time"]["selected_date_time"]
     vto_end_time = body["view"]["state"]["values"]["vto_end_time_input"]["vto_end_time"]["selected_date_time"]
     # Validate inputs
@@ -279,20 +285,13 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
     #print('>>>>>> form data')
     #logging.info(body["view"]["state"]["values"])
     
-    private_metadata = json.loads(body["view"]["private_metadata"])
-    button_ts = private_metadata["button_ts"]
-    message_ts = private_metadata["message_ts"]
-    channel_id = private_metadata["channel_id"]
-    
     user = client.users_info(user=body["user"]["id"])
     user_id = user["user"]["id"]
-    #user_email = user["user"]["profile"]["email"]
+    user_email = user["user"]["profile"]["email"]
     user_tz_offset = user["user"]["tz_offset"]
-    user_email = "Alan.Abarbanell@convorelay.com"
+    #user_email = "Alan.Abarbanell@convorelay.com"
     vto_start_time = body["view"]["state"]["values"]["vto_start_time_input"]["vto_start_time"]["selected_date_time"]
     vto_end_time = body["view"]["state"]["values"]["vto_end_time_input"]["vto_end_time"]["selected_date_time"]
-    #vto_timezone_label = body["view"]["state"]["values"]["vto_timezone_input"]["vto_timezone"]["selected_option"]["text"]["text"]
-    #vto_timezone = body["view"]["state"]["values"]["vto_timezone_input"]["vto_timezone"]["selected_option"]["value"]
     
 
     print(f'{vto_start_time}\n{vto_end_time}')
@@ -311,8 +310,8 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
         ack({
             "response_action": "clear"
         })
-        # Call the chat_postMessage or chat_postEphemeral
-        response = client.chat_postMessage(
+        # Call the chat_postMessage or chat_postEphemeral or chat_update
+        response = client.chat_update(
             #user=user_id,
             username="Error",
             blocks=[{"type": "section",
@@ -322,7 +321,7 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
                 }
             }],
             icon_url="https://convorelay.com/wp-content/uploads/2023/01/convo_bot_error_512.png",
-            thread_ts=f"{message_ts}",
+            ts=f"{message_ts}",
             channel=f"{channel_id}",
             text=f"Sorry, <@{user_id}>, you cannot take VTO request because you are not registered employee in Teamwork system. Please contact admin for help."
             #text=f"Good news! <@{user_id}|{user_name}> has submitted successfully!\nVTO Start Time: {formatted_vto_start_time}\nVTO End Time: {formatted_vto_end_time}\nVTO Timezone: {vto_timezone_label}"
@@ -450,7 +449,7 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
             user_name = user["user"]["profile"]["display_name"]
             ack()
             # Call the chat_postMessage or chat_postEphemeral
-            response = client.chat_postMessage(
+            response = client.chat_update(
                 #user=user_id,
                 username="Success",
                 blocks=[
@@ -465,7 +464,7 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
                         }
                     }],
                     icon_url="https://convorelay.com/wp-content/uploads/2023/01/convo_bot_success_512.png",
-                    thread_ts=f"{message_ts}",
+                    ts=f"{message_ts}",
                     channel=f"{channel_id}",
                     text="test"
                     #text=f"Good news! <@{user_id}|{user_name}> has submitted successfully!\nVTO Start Time: {formatted_vto_start_time}\nVTO End Time: {formatted_vto_end_time}\nVTO Timezone: {vto_timezone_label}"
