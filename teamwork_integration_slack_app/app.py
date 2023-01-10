@@ -188,66 +188,66 @@ def button_click(ack: Ack, body: dict, respond: Respond, client: WebClient):
                         "text": "VTO End Time",
                     }
                 },
-                {
-                    "type": "input",
-                    "block_id": "vto_timezone_input",
-                    "element": {
-                        "type": "static_select",
-                        "placeholder": {
-                            "type": "plain_text",
-                            "text": "Select your timezone",
-                        },
-                        "options": [
-                            {
-                                "text": {
-                                    "type": "plain_text",
-                                    "text": "Eastern Standard Time",
-                                },
-                                "value": "est"
-                            },
-                            {
-                                "text": {
-                                    "type": "plain_text",
-                                    "text": "Central Standard Time",
-                                },
-                                "value": "cst"
-                            },
-                            {
-                                "text": {
-                                    "type": "plain_text",
-                                    "text": "Mountain Standard Time",
-                                },
-                                "value": "mst"
-                            },
-                            {
-                                "text": {
-                                    "type": "plain_text",
-                                    "text": "Pacific Standard Time",
-                                },
-                                "value": "pst"
-                            },
-                            {
-                                "text": {
-                                    "type": "plain_text",
-                                    "text": "Alaska Standard Time",
-                                },
-                                "value": "ast"
-                            },
-                            {
-                                "text": {
-                                    "type": "plain_text",
-                                    "text": "Hawaii-Aleutian Standard Time",
-                                },
-                                "value": "hst"
-                            }
-                        ],
-                        "action_id": "vto_timezone"
-                    },
-                    "label": {
-                        "type": "plain_text",
-                        "text": "VTO Timezone",
-                    }
-                }
+                # {
+                #     "type": "input",
+                #     "block_id": "vto_timezone_input",
+                #     "element": {
+                #         "type": "static_select",
+                #         "placeholder": {
+                #             "type": "plain_text",
+                #             "text": "Select your timezone",
+                #         },
+                #         "options": [
+                #             {
+                #                 "text": {
+                #                     "type": "plain_text",
+                #                     "text": "Eastern Standard Time",
+                #                 },
+                #                 "value": "est"
+                #             },
+                #             {
+                #                 "text": {
+                #                     "type": "plain_text",
+                #                     "text": "Central Standard Time",
+                #                 },
+                #                 "value": "cst"
+                #             },
+                #             {
+                #                 "text": {
+                #                     "type": "plain_text",
+                #                     "text": "Mountain Standard Time",
+                #                 },
+                #                 "value": "mst"
+                #             },
+                #             {
+                #                 "text": {
+                #                     "type": "plain_text",
+                #                     "text": "Pacific Standard Time",
+                #                 },
+                #                 "value": "pst"
+                #             },
+                #             {
+                #                 "text": {
+                #                     "type": "plain_text",
+                #                     "text": "Alaska Standard Time",
+                #                 },
+                #                 "value": "ast"
+                #             },
+                #             {
+                #                 "text": {
+                #                     "type": "plain_text",
+                #                     "text": "Hawaii-Aleutian Standard Time",
+                #                 },
+                #                 "value": "hst"
+                #             }
+                #         ],
+                #         "action_id": "vto_timezone"
+                #     },
+                #     "label": {
+                #         "type": "plain_text",
+                #         "text": "VTO Timezone",
+                #     }
+                # }
             ],
             "private_metadata": f'{{\
                 "message_ts": "{body["actions"][0]["block_id"]}",\
@@ -291,11 +291,11 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
     user_email = "Alan.Abarbanell@convorelay.com"
     vto_start_time = body["view"]["state"]["values"]["vto_start_time_input"]["vto_start_time"]["selected_date_time"]
     vto_end_time = body["view"]["state"]["values"]["vto_end_time_input"]["vto_end_time"]["selected_date_time"]
-    vto_timezone_label = body["view"]["state"]["values"]["vto_timezone_input"]["vto_timezone"]["selected_option"]["text"]["text"]
-    vto_timezone = body["view"]["state"]["values"]["vto_timezone_input"]["vto_timezone"]["selected_option"]["value"]
+    #vto_timezone_label = body["view"]["state"]["values"]["vto_timezone_input"]["vto_timezone"]["selected_option"]["text"]["text"]
+    #vto_timezone = body["view"]["state"]["values"]["vto_timezone_input"]["vto_timezone"]["selected_option"]["value"]
     
 
-    print(f'{vto_start_time}\n{vto_end_time}\n{vto_timezone}')
+    print(f'{vto_start_time}\n{vto_end_time}')
     print(f'{os.environ.get("TEAMWORK_URL")}\n')
     
     tw_connector = TW_Connector(base_url = os.environ.get("TEAMWORK_URL"),
@@ -460,8 +460,8 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
                             "type": "mrkdwn",
                             "text": f"VTO Submission from <@{user_id}> completed:\
                             \n\n*VTO Start Time:* \n{vto_start_time_dt.strftime('%A, %B %d %Y %I:%M%p')}\
-                            \n\n*VTO End Time:* \n{vto_end_time_dt.strftime('%A, %B %d %Y %I:%M%p')}\
-                            \n\n*VTO Timezone:* \n{vto_timezone_label}"
+                            \n\n*VTO End Time:* \n{vto_end_time_dt.strftime('%A, %B %d %Y %I:%M%p')}"
+                            #\n\n*VTO Timezone:* \n{vto_timezone_label}"
                         }
                     }],
                     icon_url="https://convorelay.com/wp-content/uploads/2023/01/convo_bot_success_512.png",
