@@ -3,6 +3,7 @@ import logging
 import json
 import re
 import requests
+import math
 from urllib.parse import urlparse, parse_qs
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, timezone
@@ -36,6 +37,18 @@ app = App(
     authorize=authorize,
     process_before_response=True
     )
+
+# Rounding Numbering
+def rounding_vto_number(n, decimals=0):
+    if n < 1.0:
+        multiplier = 10 ** decimals
+        r = math.ceil(n * multiplier) / multiplier
+        print(f'{n} rounded up to {r}')
+    else:
+        multiplier = 10 ** decimals
+        r = math.floor(n * multiplier) / multiplier
+        print(f'{n} rounded down to {r}')
+    return r
 
 @app.action({"type": "workflow_step_edit", "callback_id": "leave_request"})
 def edit(body: dict, ack: Ack, client: WebClient):
@@ -183,13 +196,12 @@ def button_click(ack: Ack, body: dict, respond: Respond, client: WebClient):
     
     message_text = response["messages"][0]["text"]
     vto_limit = float(re.search(r"\d+\.\d+", message_text).group(0))
+    vto_limit = rounding_vto_number(vto_limit)
     logging.info(response)
-    if vto_limit < 1.0:
-        vto_limit = 1.0
     if vto_limit:
         for r in response["messages"][0]["reactions"]:
             if r["name"] == "vto" or r["name"] == "lizard":
-                if r["count"] > vto_limit:
+                if r["count"] >= vto_limit:
                     response = client.chat_postMessage(
                         #user=user_id,
                         username="Teamwork Bot",
@@ -532,25 +544,65 @@ def execute(ack: Ack, body: dict, respond: Respond, client: WebClient):
     parsed_url = urlparse(vto_message_link)
     msg_path = parsed_url.path
     raw_msg_id = re.sub('\D','',os.path.split(msg_path)[-1])
-    message_id = raw_msg_id[:-6] + "." + raw_msg_id[-6:]
+    message_ts = raw_msg_id[:-6] + "." + raw_msg_id[-6:]
     
     user = client.users_lookupByEmail(email=vto_form_receipient)
     vto_user_id = user["user"]["id"]
     
     response = client.conversations_history(channel=vto_channel_source,
-                                                    latest=message_id,
+                                                    latest=message_ts,
                                                     limit=1,
                                                     inclusive=True)
+    
     message_text = response["messages"][0]["text"]
+    thread_ts = response["messages"][0]["ts"]
+    
+    conversation_replies = client.conversations_replies(channel=vto_channel_source,
+                                            ts=thread_ts)
+    
+    vto_reaction_count = 0
+    for r in conversation_replies["messages"][0]["reactions"]:
+        if r["name"] == "vto":
+            vto_reaction_count = r["count"]
+    
+    vto_success_count = 0
+    for message in conversation_replies["messages"]:
+        if "Success" in message["username"]:
+            vto_success_count += 1
+    
     vto_limit = float(re.search(r"\d+\.\d+", message_text).group(0))
+    vto_limit = rounding_vto_number(vto_limit)
+    
     logging.info(response)
-    if vto_limit < 1.0:
-        vto_limit = 1.0
-    is_vto_limited = False
+    
+    is_vto_full = False
+    
+    if vto_success_count >= vto_limit:
+        is_vto_full = True
+    
+    if is_vto_full:
+        ack()
+        response = client.chat_postMessage(
+            #user=user_id,
+            username="Teamwork Bot",
+            blocks=[
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": f"Oh, we've reached the limit of available VTO requests at this time! Thank you, everyone!"
+                    }
+                }],
+                #icon_url="https://convorelay.com/wp-content/uploads/2023/01/convo_bot_404_512.png",
+                thread_ts=f"{message_ts}",
+                channel=vto_channel_source,
+                text=f"fallback text"
+        )
+        return
     if vto_limit:
         for r in response["messages"][0]["reactions"]:
             if r["name"] == "vto" or r["name"] == "lizard":
-                if r["count"] > vto_limit:
+                if r["count"] >= vto_limit:
                     ack()
                     response = client.chat_postMessage(
                         #user=user_id,
@@ -564,7 +616,7 @@ def execute(ack: Ack, body: dict, respond: Respond, client: WebClient):
                                 }
                             }],
                             #icon_url="https://convorelay.com/wp-content/uploads/2023/01/convo_bot_404_512.png",
-                            thread_ts=f"{message_id}",
+                            thread_ts=f"{message_ts}",
                             channel=vto_channel_source,
                             text=f"fallback text"
                     )
@@ -588,7 +640,7 @@ def execute(ack: Ack, body: dict, respond: Respond, client: WebClient):
                 },
                 {
                     "type": "actions",
-                    "block_id": f"{message_id}",
+                    "block_id": f"{message_ts}",
                     "elements": [
                         {
                             "type": "button",
