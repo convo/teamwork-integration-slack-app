@@ -142,7 +142,15 @@ def button_click(ack: Ack, body: dict, respond: Respond, client: WebClient):
     logging.info(body)
     
     if "message" in body:
-        message_mention = re.search(r"<@(.*?)>",body["message"]["blocks"][0]["text"]["text"]).group(1)
+        message_mention = body["message"]["blocks"][0]["text"]["text"]
+        print(message_mention)
+        match = re.search(r"<@(.*?)>",message_mention.strip())
+        if match:
+            print(match)
+            message_mention = match.group(1)
+            print(message_mention)
+        else:
+            print("No match found.")
         thread_ts = body["container"]["thread_ts"]
         
         user_id = body["user"]["id"]
@@ -161,7 +169,7 @@ def button_click(ack: Ack, body: dict, respond: Respond, client: WebClient):
                     icon_url="https://convorelay.com/wp-content/uploads/2023/01/convo_bot_404_512.png",
                     thread_ts=f"{thread_ts}",
                     channel=body["container"]["channel_id"],
-                    text=f"fallback text"
+                    text="fallback text"
             )
             return
     else:
@@ -169,26 +177,28 @@ def button_click(ack: Ack, body: dict, respond: Respond, client: WebClient):
         thread_ts = body["container"]["message_ts"]
     
     response = client.conversations_history(channel=body["container"]["channel_id"],
-                                                    latest=body["container"]["message_ts"],
-                                                    limit=1)
+                                                    latest=thread_ts,
+                                                    limit=1,
+                                                    inclusive=True)
     
     message_text = response["messages"][0]["text"]
-    vto_limit = re.search(r'\d+\.\d+', message_text)
+    vto_limit = float(re.search(r"\d+\.\d+", message_text).group(0))
     logging.info(response)
-    #vto_limit = 1.0
+    if vto_limit < 1.0:
+        vto_limit = 1.0
     if vto_limit:
         for r in response["messages"][0]["reactions"]:
             if r["name"] == "vto" or r["name"] == "lizard":
                 if r["count"] > vto_limit:
-                    response = client.chat_postEphemeral(
-                        user=user_id,
+                    response = client.chat_postMessage(
+                        #user=user_id,
                         username="Teamwork Bot",
                         blocks=[
                             {
                                 "type": "section",
                                 "text": {
                                     "type": "mrkdwn",
-                                    "text": f"Oh, we've met the limit availability of vto requests at this time! Thank you everyone!"
+                                    "text": f"Oh, we've reached the limit of available VTO requests at this time! Thank you, everyone!"
                                 }
                             }],
                             #icon_url="https://convorelay.com/wp-content/uploads/2023/01/convo_bot_404_512.png",
@@ -437,14 +447,14 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
                 }
             })
             return
+            #\n*Unix VTO Start Time:*\n{vto_start_time}\
+            #\n*Unix VTO End Time:*\n{vto_end_time}\
         elif final_response.status_code == 200:
             user_name = user["user"]["profile"]["display_name"]
             if os.environ.get("DEBUG"):
                 text_output = f'VTO Submission from <@{user_id}> completed:\
-                    \n*Unix VTO Start Time:*\n{vto_start_time}\
-                    \n*Unix VTO End Time:*\n{vto_end_time}\
-                    \n*Converted VTO Start Time:*\n{aware_vto_start_time}\
-                    \n*Converted VTO End Time:*\n{aware_vto_end_time}\
+                    \n*VTO Start Time:*\n{aware_vto_start_time}\
+                    \n*VTO End Time:*\n{aware_vto_end_time}\
                     \n*Slack User\'s Local Timezone Offset:*\n{user_tz_offset}\
                     \n*Converted to UTC VTO Start Time:*\n{aware_utc_vto_start_time}\
                     \n*Converted to UTC VTO End Time:*\n{aware_utc_vto_end_time}\
@@ -458,10 +468,11 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
                     \n*VTO End Time:* \n{aware_vto_end_time.strftime('%A, %B %d %Y %I:%M%p')}"
             
             # Call the chat_postMessage or chat_postEphemeral
-            #if (user_id == message_mentionn and not message_mention == ""):
-            #    response = client.chat_delete(channel=channel_id,ts=message_ts)
-            response = client.chat_postEphemeral(
-                user=user_id,
+            if (user_id == message_mention and not message_mention == ""):
+                response = client.chat_delete(channel=channel_id,ts=message_ts)
+            ack({"response_action": "clear"})
+            response = client.chat_postMessage(
+                #user=user_id,
                 username="Success",
                 blocks=[
                     {
@@ -477,7 +488,6 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
                     text=f"fallback text"
             )
             print(response)
-            ack()
             return
 
 @app.shortcut("leave-request-shortcut")
@@ -527,40 +537,76 @@ def execute(ack: Ack, body: dict, respond: Respond, client: WebClient):
     user = client.users_lookupByEmail(email=vto_form_receipient)
     vto_user_id = user["user"]["id"]
     
-    # Call the chat_postMessage or chat_postEphemeral
-    response = client.chat_postEphemeral(
-        user=f"{vto_user_id}",
-        channel=f"{vto_channel_source}",
-        text="Click button to open a leave request form.",
-        blocks=[
-            {
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": f"Hello <@{vto_user_id}>!\nTo submit your VTO, Please fill out this form."
-                }
-            },
-            {
-                "type": "actions",
-                "block_id": f"{message_id}",
-                "elements": [
-                    {
-                        "type": "button",
-                        "text": {
-                            "type": "plain_text",
-                            "text": "Open VTO form",
-                            "emoji": True
-                        },
-                        "value": "open-leave-request-form",
-                        "action_id": "open-leave-request-form"
+    response = client.conversations_history(channel=vto_channel_source,
+                                                    latest=message_id,
+                                                    limit=1,
+                                                    inclusive=True)
+    message_text = response["messages"][0]["text"]
+    vto_limit = float(re.search(r"\d+\.\d+", message_text).group(0))
+    logging.info(response)
+    if vto_limit < 1.0:
+        vto_limit = 1.0
+    is_vto_limited = False
+    if vto_limit:
+        for r in response["messages"][0]["reactions"]:
+            if r["name"] == "vto" or r["name"] == "lizard":
+                if r["count"] > vto_limit:
+                    ack()
+                    response = client.chat_postMessage(
+                        #user=user_id,
+                        username="Teamwork Bot",
+                        blocks=[
+                            {
+                                "type": "section",
+                                "text": {
+                                    "type": "mrkdwn",
+                                    "text": f"Oh, we've reached the limit of available VTO requests at this time! Thank you, everyone!"
+                                }
+                            }],
+                            #icon_url="https://convorelay.com/wp-content/uploads/2023/01/convo_bot_404_512.png",
+                            thread_ts=f"{message_id}",
+                            channel=vto_channel_source,
+                            text=f"fallback text"
+                    )
+                    return
+                else:
+                    is_vto_limited = True
+
+    if is_vto_limited:
+        # Call the chat_postMessage or chat_postEphemeral
+        response = client.chat_postMessage(
+            #user=f"{vto_user_id}",
+            channel=f"{vto_channel_source}",
+            text="Click button to open a leave request form.",
+            blocks=[
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": f"Hello <@{vto_user_id}>!\nTo submit your VTO, Please fill out this form."
                     }
-                ]
-            }
-        ],
-        username="Teamwork Bot",
-        icon_url="https://drive.google.com/file/d/10sWFW8BDAVGVzX7Jk-J7mxeCVCn49e2p",
-        thread_ts=f"{message_id}"
-    )
+                },
+                {
+                    "type": "actions",
+                    "block_id": f"{message_id}",
+                    "elements": [
+                        {
+                            "type": "button",
+                            "text": {
+                                "type": "plain_text",
+                                "text": "Open VTO form",
+                                "emoji": True
+                            },
+                            "value": "open-leave-request-form",
+                            "action_id": "open-leave-request-form"
+                        }
+                    ]
+                }
+            ],
+            username="Teamwork Bot",
+            icon_url="https://drive.google.com/file/d/10sWFW8BDAVGVzX7Jk-J7mxeCVCn49e2p",
+            thread_ts=f"{message_id}"
+        )
 
 SlackRequestHandler.clear_all_log_handlers()
 logging.basicConfig(format="%(asctime)s %(message)s", level=logging.DEBUG)
