@@ -139,9 +139,66 @@ def save(ack: Ack, client: WebClient, body: dict):
 def button_click(ack: Ack, body: dict, respond: Respond, client: WebClient):
     print('--------------- open-leave-request-form ---------------')
     ack()
-    #logging.info(body)
+    logging.info(body)
     
-    message_mention = re.search(r"<@(.*?)>",body["message"]["blocks"][0]["text"]["text"]).group(1)
+    if "message" in body:
+        message_mention = re.search(r"<@(.*?)>",body["message"]["blocks"][0]["text"]["text"]).group(1)
+        thread_ts = body["container"]["thread_ts"]
+        
+        user_id = body["user"]["id"]
+        if not user_id == message_mention:
+            response = client.chat_postEphemeral(
+                user=user_id,
+                username="Caution",
+                blocks=[
+                    {
+                        "type": "section",
+                        "text": {
+                            "type": "mrkdwn",
+                            "text": f"Hi <@{user_id}>, please react :vto: to the post to open your vto request form."
+                        }
+                    }],
+                    icon_url="https://convorelay.com/wp-content/uploads/2023/01/convo_bot_404_512.png",
+                    thread_ts=f"{thread_ts}",
+                    channel=body["container"]["channel_id"],
+                    text=f"fallback text"
+            )
+            return
+    else:
+        message_mention = ""
+        thread_ts = body["container"]["message_ts"]
+    
+    response = client.conversations_history(channel=body["container"]["channel_id"],
+                                                    latest=body["container"]["message_ts"],
+                                                    limit=1)
+    
+    message_text = response["messages"][0]["text"]
+    vto_limit = re.search(r'\d+\.\d+', message_text)
+    logging.info(response)
+    #vto_limit = 1.0
+    if vto_limit:
+        for r in response["messages"][0]["reactions"]:
+            if r["name"] == "vto" or r["name"] == "lizard":
+                if r["count"] > vto_limit:
+                    response = client.chat_postEphemeral(
+                        user=user_id,
+                        username="Teamwork Bot",
+                        blocks=[
+                            {
+                                "type": "section",
+                                "text": {
+                                    "type": "mrkdwn",
+                                    "text": f"Oh, we've met the limit availability of vto requests at this time! Thank you everyone!"
+                                }
+                            }],
+                            #icon_url="https://convorelay.com/wp-content/uploads/2023/01/convo_bot_404_512.png",
+                            thread_ts=f"{thread_ts}",
+                            channel=body["container"]["channel_id"],
+                            text=f"fallback text"
+                    )
+                    return
+        
+    user = body["user"]["id"]
     
     res = client.views_open(
         trigger_id = body["trigger_id"],
@@ -189,7 +246,7 @@ def button_click(ack: Ack, body: dict, respond: Respond, client: WebClient):
                 }
             ],
             "private_metadata": f'{{\
-                "thread_ts": "{body["container"]["thread_ts"]}",\
+                "thread_ts": "{thread_ts}",\
                 "message_ts": "{body["container"]["message_ts"]}",\
                 "response_url": "{body["response_url"]}",\
                 "message_mention": "{message_mention}",\
@@ -221,12 +278,11 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
         })
         return
     
-    #logging.info(body)
+    logging.info(body)
     
     user = client.users_info(user=body["user"]["id"])
     user_id = user["user"]["id"]
     user_email = user["user"]["profile"]["email"]
-    user_tz_offset = user["user"]["tz_offset"]
 
     print(f'{vto_start_time}\n{vto_end_time}')
     print(f'{os.environ.get("TEAMWORK_URL")}\n')
@@ -245,7 +301,7 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
         # Call the chat_postMessage or chat_postEphemeral or chat_update
         ack({"response_action": "clear"})
         
-        if (user_id == message_mention):
+        if (user_id == message_mention and not message_mention == ""):
             response = client.chat_delete(channel=channel_id,ts=message_ts)
         
         response = client.chat_postMessage(
@@ -285,30 +341,38 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
                     
         print(my_tw_location)
         
-        # Create a timedelta object represents Slack's timezone offset
-        vto_start_time_timestamp = datetime.fromtimestamp(vto_start_time)
-        vto_end_time_timestamp = datetime.fromtimestamp(vto_end_time)
+        # Get the user's local timezone offset based on slack
+        user_tz_offset = user["user"]["tz_offset"]
+        # Create a timetime object based on slack user's local timezone offset
+        #slack_tz_offset = timezone(timedelta(seconds=user_tz_offset))
         
-        # Create a timedelta object represents Slack's timezone offset
-        my_slack_offset_tz = timezone(timedelta(seconds=user_tz_offset))
+        # Create VTO datetime objects with aware timezone
+        aware_vto_start_time = datetime.fromtimestamp(vto_start_time, timezone(timedelta(seconds=user_tz_offset)))
+        aware_vto_end_time = datetime.fromtimestamp(vto_end_time, timezone(timedelta(seconds=user_tz_offset)))
+        print(f'{aware_vto_start_time} | {aware_vto_start_time.tzinfo}\n{aware_vto_end_time} | {aware_vto_end_time.tzinfo}')
+        
+        # Convert VTO datetime objects to UTC
+        aware_utc_vto_start_time = aware_vto_start_time.astimezone(timezone.utc)
+        aware_utc_vto_end_time = aware_vto_end_time.astimezone(timezone.utc)
+        print(f'{aware_utc_vto_start_time} | {aware_utc_vto_start_time.tzinfo}\
+            \n{aware_utc_vto_end_time} | {aware_utc_vto_end_time.tzinfo}\n')
 
-        vto_start_time_dt = vto_start_time_timestamp.replace(tzinfo=my_slack_offset_tz)
-        vto_end_time_dt = vto_end_time_timestamp.replace(tzinfo=my_slack_offset_tz)
+        # Get the timezone of the user's associated location in the Teamwork system.
+        tw_local_timezone_string = my_tw_location['TimeZone'][1:-1].split(") ")[0]
+        tw_aware_timezone = datetime.strptime(tw_local_timezone_string,"UTC%z")
+        print(f'tw aware timezone: {tw_aware_timezone.tzinfo}')
+        print(f'Convert to aware timezone offset based on tw location\'s')
+        tw_aware_tz_offset = tw_aware_timezone.tzinfo.utcoffset(datetime(1970,1,1)).total_seconds()
         
-        # Parse the location's timezone offset
-        my_tw_loc_offset = my_tw_location['TimeZone'][1:-1].split(") ")[0]
-        my_tw_loc_offset_timetz = datetime.strptime(my_tw_loc_offset, "UTC%z").timetz()
+        print(f'\n#5 convert vto times to teamwork location\'s timezone')
+        aware_tw_vto_start_time = aware_utc_vto_start_time.astimezone(timezone(timedelta(seconds=tw_aware_tz_offset)))
+        aware_tw_vto_end_time = aware_utc_vto_end_time.astimezone(timezone(timedelta(seconds=tw_aware_tz_offset)))
+        print(f'{aware_tw_vto_start_time} | {aware_tw_vto_start_time.tzinfo}\
+            \n{aware_tw_vto_end_time} | {aware_tw_vto_end_time.tzinfo}')
         
-        # Create a timedelta object representing the time zone offset
-        my_tw_loc_offset_timedelta = timedelta(hours=my_tw_loc_offset_timetz.hour,
-                                               minutes=my_tw_loc_offset_timetz.minute)
-        
-        # Create a time zone object for the new time zone
-        my_tw_loc_tz_dt = timezone(my_tw_loc_offset_timedelta)
-        
-        # Convert the datetime object to the new time zone
-        converted_vto_start_time = vto_start_time_dt.astimezone(my_tw_loc_tz_dt)
-        converted_vto_end_time = vto_end_time_dt.astimezone(my_tw_loc_tz_dt)
+        # reformat vto datetime objects
+        formatted_tw_start_time = datetime.strftime(aware_tw_vto_start_time,date_format)
+        formatted_tw_end_time = datetime.strftime(aware_tw_vto_end_time,date_format)
         
         # Get the list of leave types
         response = tw_connector.get('/api/leave/leavetypes')
@@ -320,22 +384,22 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
             for i in tw_leave_types:
                 if i["Title"] == "VTO: Slack" or i["Code"] == "VTOSLACK":
                     selected_leave_type = i
-
+        
         # Initialize a leave request
         tw_leave_request = Employee_Leave_Request(EmpId = tw_employee[0]["Id"],
                                                   EmpName = tw_employee[0]["FullName"],
                                                   Employees = [{"Id": tw_employee[0]["Id"],
                                                                 "Title": tw_employee[0]["FullName"]}],
-                                                  Start = converted_vto_start_time.date().strftime(date_format),
-                                                  End = converted_vto_end_time.date().strftime(date_format),
-                                                  StartTime = converted_vto_start_time.strftime(date_format),
-                                                  EndTime = converted_vto_end_time.strftime(date_format),
+                                                  Start = formatted_tw_start_time,
+                                                  End = formatted_tw_end_time,
+                                                  StartTime = formatted_tw_start_time,
+                                                  EndTime = formatted_tw_end_time,
                                                   TypeId=selected_leave_type['Id'],
                                                   LeaveTypes = [selected_leave_type],
                                                   MinDate = datetime.today().strftime(date_format),
                                                   MaxDate = (datetime.today() + timedelta(days=365*2)).strftime(date_format),
                                                   DayHours = [{
-                                                      "Date": converted_vto_start_time.date().strftime(date_format),
+                                                      "Date": formatted_tw_start_time,
                                                       "Count": None,
                                                       "Value": 1,
                                                       "Description": None,
@@ -375,30 +439,45 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
             return
         elif final_response.status_code == 200:
             user_name = user["user"]["profile"]["display_name"]
-            ack({"response_action": "clear"})
+            if os.environ.get("DEBUG"):
+                text_output = f'VTO Submission from <@{user_id}> completed:\
+                    \n*Unix VTO Start Time:*\n{vto_start_time}\
+                    \n*Unix VTO End Time:*\n{vto_end_time}\
+                    \n*Converted VTO Start Time:*\n{aware_vto_start_time}\
+                    \n*Converted VTO End Time:*\n{aware_vto_end_time}\
+                    \n*Slack User\'s Local Timezone Offset:*\n{user_tz_offset}\
+                    \n*Converted to UTC VTO Start Time:*\n{aware_utc_vto_start_time}\
+                    \n*Converted to UTC VTO End Time:*\n{aware_utc_vto_end_time}\
+                    \n*Defaulted TW Location Name:*\n{my_tw_location["BusinessName"]}\
+                    \n*Defaulted TW Location\'s timezone:*\n{tw_local_timezone_string}\
+                    \n*Converted VTO Start Time based on TW Location:*\n{aware_tw_vto_start_time}\
+                    \n*Converted VTO End Time based on TW Location:*\n{aware_tw_vto_end_time}'
+            else:
+                text_output = f"VTO Submission from <@{user_id}> completed:\
+                    \n*VTO Start Time:* \n{aware_vto_start_time.strftime('%A, %B %d %Y %I:%M%p')}\
+                    \n*VTO End Time:* \n{aware_vto_end_time.strftime('%A, %B %d %Y %I:%M%p')}"
             
             # Call the chat_postMessage or chat_postEphemeral
-            if (user_id == message_mention):
-                response = client.chat_delete(channel=channel_id,ts=message_ts)
-            response = client.chat_postMessage(
-                #user=user_id,
+            #if (user_id == message_mentionn and not message_mention == ""):
+            #    response = client.chat_delete(channel=channel_id,ts=message_ts)
+            response = client.chat_postEphemeral(
+                user=user_id,
                 username="Success",
                 blocks=[
                     {
                         "type": "section",
                         "text": {
                             "type": "mrkdwn",
-                            "text": f"VTO Submission from <@{user_id}> completed:\
-                            \n*VTO Start Time:* \n{vto_start_time_dt.strftime('%A, %B %d %Y %I:%M%p')}\
-                            \n*VTO End Time:* \n{vto_end_time_dt.strftime('%A, %B %d %Y %I:%M%p')}"
+                            "text": text_output
                         }
                     }],
                     icon_url="https://convorelay.com/wp-content/uploads/2023/01/convo_bot_success_512.png",
                     thread_ts=f"{thread_ts}",
                     channel=f"{channel_id}",
-                    text=f"VTO Submission from <@{user_id}> completed:\nVTO Start Time:\n{vto_start_time_dt.strftime('%A, %B %d %Y %I:%M%p')}\nVTO End Time: \n{vto_end_time_dt.strftime('%A, %B %d %Y %I:%M%p')}"
+                    text=f"fallback text"
             )
             print(response)
+            ack()
             return
 
 @app.shortcut("leave-request-shortcut")
@@ -421,7 +500,7 @@ def open_modal(ack: Ack, body: dict, client: WebClient):
 def execute(ack: Ack, body: dict, respond: Respond, client: WebClient):
     print('--------------- workflow_step_execute ---------------')
     ack()
-    #logging.info(body)
+    logging.info(body)
     
     step = body["event"]["workflow_step"]
     #completion = client.api_call(
@@ -449,8 +528,8 @@ def execute(ack: Ack, body: dict, respond: Respond, client: WebClient):
     vto_user_id = user["user"]["id"]
     
     # Call the chat_postMessage or chat_postEphemeral
-    response = client.chat_postMessage(
-        #user=f"{vto_user_id}",
+    response = client.chat_postEphemeral(
+        user=f"{vto_user_id}",
         channel=f"{vto_channel_source}",
         text="Click button to open a leave request form.",
         blocks=[
