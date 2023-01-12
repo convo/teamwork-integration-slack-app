@@ -273,6 +273,7 @@ def button_click(ack: Ack, body: dict, respond: Respond, client: WebClient):
                                     }
                                 }
                             ],
+                            "notify_on_close": True,
                             "private_metadata": f'{{\
                                 "thread_ts": "{thread_ts}",\
                                 "message_ts": "{body["container"]["message_ts"]}",\
@@ -283,8 +284,48 @@ def button_click(ack: Ack, body: dict, respond: Respond, client: WebClient):
                         }
                     )
 
+@app.view_closed("leave-request-submission")
+def handle_view_closed_events(ack: Ack, body: dict, client: WebClient):
+    print('--------------- leave-request-form-closed ---------------')
+    ack()
+    logging.info(body)
+    private_metadata = json.loads(body["view"]["private_metadata"])
+    response_url = private_metadata["response_url"]
+    message_ts = private_metadata["message_ts"]
+    message_mention = private_metadata["message_mention"]
+    thread_ts = private_metadata["thread_ts"]
+    channel_id = private_metadata["channel_id"]
+    is_closed = body["view"]["notify_on_close"]
+    is_cleared = body["is_cleared"]
+    user_id = body["user"]["id"]
+    
+    if is_closed and not is_cleared:
+        # Call the chat_postMessage or chat_postEphemeral or chat_update
+        ack()
+        if (user_id == message_mention and not message_mention == ""):
+            response = client.chat_delete(channel=channel_id,ts=message_ts)
+        response = client.chat_postEphemeral(
+            user=user_id,
+            username="Cancel",
+            blocks=[{"type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"I see that you have closed the VTO form, <@{user_id}>. You can try again if by accident."
+                }
+            }],
+            icon_url="https://convorelay.com/wp-content/uploads/2023/01/convo_bot_error_512.png",
+            thread_ts=f"{thread_ts}",
+            channel=f"{channel_id}",
+            text=f"You've cancelled the form, <@{user_id}>"
+        )
+        return
+        
+        
+    
+
 @app.view("leave-request-submission")
 def handle_submission(ack: Ack, body: dict, client: WebClient):
+    
     print('--------------- leave-request-submission ---------------')
     ack()
     private_metadata = json.loads(body["view"]["private_metadata"])
@@ -293,6 +334,9 @@ def handle_submission(ack: Ack, body: dict, client: WebClient):
     message_mention = private_metadata["message_mention"]
     thread_ts = private_metadata["thread_ts"]
     channel_id = private_metadata["channel_id"]
+    
+    #if body["view"]["private_metadata"]
+    
     vto_start_time = body["view"]["state"]["values"]["vto_start_time_input"]["vto_start_time"]["selected_date_time"]
     vto_end_time = body["view"]["state"]["values"]["vto_end_time_input"]["vto_end_time"]["selected_date_time"]
     # Validate inputs
@@ -567,6 +611,8 @@ def execute(ack: Ack, body: dict, respond: Respond, client: WebClient):
                                             ts=thread_ts)
     vto_reaction_count = 0
     vto_success_count = 0
+    vto_opened_form_count = 0
+    is_vto_in_queue = False
     is_vto_full = False
     has_no_thread = False
     if not "messages" in conversation_replies:
@@ -576,12 +622,18 @@ def execute(ack: Ack, body: dict, respond: Respond, client: WebClient):
         for r in conversation_replies["messages"][0]["reactions"]:
             if r["name"] == "vto":
                 vto_reaction_count = r["count"]
-
+        
         if len(conversation_replies["messages"]) > 1:
+            
             for message in conversation_replies["messages"]:
                 if "username" in message:
                     if "Success" in message["username"]:
                         vto_success_count += 1
+                    if "Teamwork Bot" in message["username"] and "Click button to open a leave request form" in message["text"]:
+                        vto_opened_form_count += 1
+        
+        
+                            
     
     vto_limit = float(re.search(r"\d+\.\d+", message_text).group(0))
     vto_limit = rounding_vto_number(vto_limit)
@@ -590,8 +642,17 @@ def execute(ack: Ack, body: dict, respond: Respond, client: WebClient):
     print(f'is_vto_full {is_vto_full}')
     print(f'has_no_thread {has_no_thread}')
     print(f'vto_success_count: {vto_success_count}')
+    print(f'vto_opened_form_count: {vto_opened_form_count}')
+    
+    
+    
     if not is_vto_full and has_no_thread and vto_success_count == 0:
         is_vto_full = False
+        print(f'set is_vto_full to {is_vto_full}')
+    elif vto_opened_form_count >= vto_limit and vto_opened_form_count > vto_success_count:
+        is_vto_in_queue = True
+        print(f'set is_vto_in_queue to {is_vto_in_queue}')
+        is_vto_full = True
         print(f'set is_vto_full to {is_vto_full}')
     elif vto_success_count >= vto_limit:
         is_vto_full = True
@@ -602,23 +663,42 @@ def execute(ack: Ack, body: dict, respond: Respond, client: WebClient):
     
     if is_vto_full:
         ack()
-        response = client.chat_postMessage(
-            #user=user_id,
-            username="Teamwork Bot",
-            blocks=[
-                {
-                    "type": "section",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": f"Oh, we've reached the limit of available VTO requests at this time! Thank you, everyone!"
-                    }
-                }],
-                #icon_url="https://convorelay.com/wp-content/uploads/2023/01/convo_bot_404_512.png",
-                thread_ts=f"{message_ts}",
-                channel=vto_channel_source,
-                text=f"fallback text"
-        )
-        return
+        if is_vto_in_queue:
+            response = client.chat_postEphemeral(
+                user=vto_user_id,
+                username="Teamwork Bot",
+                blocks=[
+                    {
+                        "type": "section",
+                        "text": {
+                            "type": "mrkdwn",
+                            "text": f"Oh, the VTO request forms queue is full. Please try again soon, <@{vto_user_id}>."
+                        }
+                    }],
+                    #icon_url="https://convorelay.com/wp-content/uploads/2023/01/convo_bot_404_512.png",
+                    thread_ts=f"{message_ts}",
+                    channel=vto_channel_source,
+                    text=f"Oh, the VTO request forms queue is full. Please try again soon, <@{vto_user_id}>."
+            )
+            return
+        else:
+            response = client.chat_postMessage(
+                #user=user_id,
+                username="Teamwork Bot",
+                blocks=[
+                    {
+                        "type": "section",
+                        "text": {
+                            "type": "mrkdwn",
+                            "text": f"Oh, we've reached the limit of available VTO requests at this time! Thank you, everyone!"
+                        }
+                    }],
+                    #icon_url="https://convorelay.com/wp-content/uploads/2023/01/convo_bot_404_512.png",
+                    thread_ts=f"{message_ts}",
+                    channel=vto_channel_source,
+                    text=f"fallback text"
+            )
+            return
     else:
         response = client.chat_postMessage(
             #user=f"{vto_user_id}",
